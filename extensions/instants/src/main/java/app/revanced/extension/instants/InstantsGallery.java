@@ -40,6 +40,20 @@ public final class InstantsGallery {
         return !injecting;
     }
 
+    /**
+     * File de l'image choisie (IMAGE_PATH), ou null si absente.
+     *
+     * Le vrai upload de QuickSnap NE part PAS du Bitmap : A02 construit un
+     * `Medium` (com.instagram.common.gallery.Medium) soit depuis un Bitmap,
+     * soit depuis un File, puis l'envoie. Le runtime utilise le chemin File
+     * -> on doit donc rediriger ce File vers notre image. Null-safe : si le
+     * fichier manque, on ne touche pas le paramètre (upload d'origine préservé).
+     */
+    public static File imageFile() {
+        File f = new File(IMAGE_PATH);
+        return f.exists() ? f : null;
+    }
+
     /** Lance le sélecteur photo. context = arg0 de A03, viewModel = arg2 de A03. */
     public static void startPick(Context context, Object viewModel) {
         try {

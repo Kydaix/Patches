@@ -36,6 +36,25 @@ private val swapBitmap = """
     nop
 """
 
+// A02 : swap du Bitmap (p1) ET du File (p3). Le vrai upload construit un Medium
+// depuis le File (chemin runtime), pas depuis le Bitmap -> rediriger p3 vers
+// notre image est ce qui corrige l'off-by-one. p1/p3 sont capturés dans le
+// lambda de transcodage AVANT l'appel suspend, donc le swap à l'entrée propage.
+private val swapBitmapAndFile = """
+    const-string v0, "$IMAGE_PATH"
+    invoke-static { v0 }, Landroid/graphics/BitmapFactory;->decodeFile(Ljava/lang/String;)Landroid/graphics/Bitmap;
+    move-result-object v0
+    if-eqz v0, :revanced_keep_bmp
+    move-object/from16 p1, v0
+    :revanced_keep_bmp
+    invoke-static { }, $EXT->imageFile()Ljava/io/File;
+    move-result-object v0
+    if-eqz v0, :revanced_keep_file
+    move-object/from16 p3, v0
+    :revanced_keep_file
+    nop
+"""
+
 // A03 : intercepte la capture caméra pour ouvrir le sélecteur ; sinon swap.
 private val interceptThenSwap = """
     invoke-static { }, $EXT->shouldIntercept()Z
@@ -84,9 +103,9 @@ val instantsGalleryPatch = bytecodePatch(
     extendWith("extensions/instants.rve")
 
     execute {
-        // Upload (suspend) : remplacer le bitmap par l'image choisie.
+        // Upload (suspend) : remplacer le bitmap (A01) ; bitmap + File (A02).
         a01Fingerprint.method.addInstructions(0, swapBitmap)
-        a02Fingerprint.method.addInstructions(0, swapBitmap)
+        a02Fingerprint.method.addInstructions(0, swapBitmapAndFile)
         // Capture : intercepter -> sélecteur, sinon swap.
         a03Fingerprint.method.addInstructions(0, interceptThenSwap)
         // Résultat du sélecteur -> extension.
