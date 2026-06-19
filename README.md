@@ -1,74 +1,79 @@
-# Instagram ReVanced — Patch "Instants : envoyer depuis la galerie"
+# Instagram ReVanced — Patch "Instants : importer depuis la galerie"
 
-Patch [ReVanced](https://revanced.app) personnel pour **Instagram** (`com.instagram.android`)
-qui permet d'envoyer une **photo de la galerie** dans **Instants** (photos
-éphémères, nom de code interne *QuickSnap*), alors qu'Instagram impose la caméra
-in-app.
+Patch [ReVanced](https://revanced.app) pour **Instagram** (`com.instagram.android`)
+qui permet d'**envoyer une photo de ta galerie dans Instants** (photos éphémères,
+nom de code interne *QuickSnap*), alors qu'Instagram impose la caméra in-app.
 
-> **Migré sur le patcher `22.0.0` + plugin Gradle `app.revanced.patches:1.0.0-dev.10`
-> + Gradle `9.3.1`** → le `.rvp` contient du **DEX** et se charge dans **ReVanced
-> Manager** (testé compatible Manager `2.7.0-dev.5`). Cible Instagram : `434.x`.
+> Patcher `22.0.0` · plugin Gradle `app.revanced.patches:1.0.0-dev.10` · Gradle `9.3.1`.
+> `.rvp` avec DEX → **importable dans ReVanced Manager** (testé Manager `2.7.0-dev.5`).
+> Cible Instagram : **434.x**. ✅ Validé de bout en bout (le serveur accepte l'envoi).
+
+---
+
+## Utilisation
+
+Après installation : ouvre **Instants** → écris une légende → appuie sur le
+**bouton de capture habituel**. Au lieu de prendre une photo caméra, un
+**sélecteur de galerie système s'ouvre** → choisis ta photo → elle part comme Instant.
+
+> Il n'y a pas de bouton dédié : le déclencheur de capture **est** le sélecteur
+> (ajouter un bouton dans l'UI Compose d'Instants serait bien plus complexe).
+> Aucune permission requise (sélecteur photo système `ACTION_PICK_IMAGES`).
 
 ---
 
 ## Comment ça marche
 
-Instants n'a aucun import galerie implémenté, mais son pipeline d'envoi accepte un
-`Bitmap` — `com.instagram.quicksnap.camera.domain.QuickSnapCameraViewModel.A01/A02/A03(Context, Bitmap, …)`.
-Le patch injecte à l'entrée de ces 3 méthodes le remplacement du `Bitmap` capturé
-par une image décodée depuis un chemin fixe :
+Instants n'a aucun import galerie implémenté, mais son pipeline accepte un `Bitmap` :
+`com.instagram.quicksnap.camera.domain.QuickSnapCameraViewModel.A01/A02/A03(Context, Bitmap, …)`.
 
-```smali
-const-string p1, "/sdcard/Pictures/instant.jpg"
-invoke-static/range { p1 .. p1 }, Landroid/graphics/BitmapFactory;->decodeFile(Ljava/lang/String;)Landroid/graphics/Bitmap;
-move-result-object p1
-```
+1. **`A03`** (arrivée de la capture) : on appelle l'extension qui lance le
+   **sélecteur photo** ; la capture caméra est annulée.
+2. **`ModalActivity.onActivityResult`** : à la sélection, l'extension copie l'image
+   choisie dans le **dossier privé d'Instagram**
+   (`/sdcard/Android/data/com.instagram.android/files/instant.jpg`) puis re-déclenche `A03`.
+3. **`A01/A02/A03`** lisent ce fichier (`BitmapFactory.decodeFile`, *null-safe*) →
+   l'Instant part avec ta photo.
 
-**UX** : déposer la photo dans `/sdcard/Pictures/instant.jpg`, puis capturer dans
-Instants → l'Instant utilise ta photo. Ciblage par **nom de classe**
-(`QuickSnapCameraViewModel`, non obfusqué).
+> Le dossier privé d'IG est crucial : un chemin `/sdcard/Pictures` échoue
+> (`decodeFile` renvoie null à cause du scoped storage → NPE → pas d'upload).
 
-Source : [`patches/.../instants/InstantsGalleryPatch.kt`](patches/src/main/kotlin/app/revanced/patches/instagram/instants/InstantsGalleryPatch.kt).
-
-### ⚠️ Inconnue restante
-Le patch compile, se dexe et s'injecte. **Non confirmé** : l'acceptation côté
-**serveur** d'une image non issue de la caméra. À valider en envoyant un Instant.
+Sources : [`patches/.../instants/InstantsGalleryPatch.kt`](patches/src/main/kotlin/app/revanced/patches/instagram/instants/InstantsGalleryPatch.kt)
+· extension [`extensions/instants/`](extensions/instants/).
 
 ---
 
-## Le `.rvp` (prêt pour ReVanced Manager)
+## Le `.rvp` (pour ReVanced Manager)
 
-[`dist/patches-1.0.0.rvp`](dist/patches-1.0.0.rvp) — contient le DEX, importable
-directement dans ReVanced Manager.
+[`dist/patches-1.0.0.rvp`](dist/patches-1.0.0.rvp) — contient le DEX + l'extension.
 
-### L'importer dans ReVanced Manager
-1. Télécharger `dist/patches-1.0.0.rvp` sur le téléphone.
-2. ReVanced Manager → **Patch bundles / Sources** → ajouter → **depuis le stockage**
-   → sélectionner le `.rvp`.
-3. Sélectionner **Instagram**, activer le patch *« Instants : envoyer depuis la
-   galerie »*, patcher (en mount si root, sinon install).
-4. Déposer ta photo dans `/sdcard/Pictures/instant.jpg`, ouvrir Instants, capturer.
+**Import dans ReVanced Manager :** sources → ajouter → depuis le stockage → choisir
+le `.rvp`. Sélectionner Instagram, activer *« Instants : importer depuis la galerie »*,
+patcher. Compatibilité : patcher **22.x** (Manager 2.7+, revanced-cli 6.x ; ❌ cli ≤ 5.x).
 
-> Compatibilité : `.rvp` en patcher **22.0.0**. OK avec ReVanced Manager 2.7.x et
-> revanced-cli 6.x. ❌ revanced-cli ≤ 5.x (patcher 21).
+**APK à patcher :** Instagram est en *split* ; ReVanced Manager veut un APK unique.
+Fusionne les splits avec [APKEditor](https://github.com/REAndroid/APKEditor) :
+`java -jar APKEditor.jar m -i bundle.apks -o single.apk`. Prends une source avec la
+**vraie base + le split arm64** (sinon l'APK plante, libs natives manquantes).
+
+> Sur Xiaomi/HyperOS, `adb install` peut être bloqué (`USER_RESTRICTED`) : installe
+> en root (`su -c 'pm install single_patched.apk'`).
 
 ---
 
 ## Construire le `.rvp` soi-même
 
-Prérequis : **JDK 17+** et un **token GitHub `read:packages`** (les dépendances
-ReVanced sont sur GitHub Packages). Mettre les identifiants dans le fichier Gradle
-global `~/.gradle/gradle.properties` (cf. [`gradle.properties.example`](gradle.properties.example)) :
-```properties
-githubPackagesUsername=ton_pseudo
-githubPackagesPassword=ghp_xxx
-```
+Prérequis :
+- **JDK 17+**
+- **Token GitHub `read:packages`** dans `~/.gradle/gradle.properties`
+  (`githubPackagesUsername` / `githubPackagesPassword`, cf. `gradle.properties.example`)
+- **SDK Android** (android-34 + build-tools 34) — requis par le module extension.
+  Renseigner `local.properties` : `sdk.dir=C:/chemin/vers/Android/Sdk`
 
-Puis — **utiliser la tâche `buildAndroid`** (et non `build`, qui ne produit que des
-`.class` non chargeables par Manager) :
+Puis — **tâche `buildAndroid`** (compile l'extension en DEX et l'ajoute au `.rvp`) :
 ```powershell
 .\gradlew.bat :patches:buildAndroid
-# -> patches\build\libs\patches-1.0.0.rvp  (contient classes.dex)
+# -> patches\build\libs\patches-1.0.0.rvp
 ```
 
 ---
@@ -76,22 +81,17 @@ Puis — **utiliser la tâche `buildAndroid`** (et non `build`, qui ne produit q
 ## Structure
 
 ```
-patches/
-  build.gradle.kts            métadonnées + deps (guava, stub)
-  src/main/kotlin/.../instants/InstantsGalleryPatch.kt   le patch
-  stub/                       stubs d'API Android (java-library)
-extensions/proguard-rules.pro (requis par la config, pas d'extension ici)
-gradle/ + gradlew             wrapper Gradle 9.3.1
-settings.gradle.kts           plugin dev.10 + dépôt GitHub Packages
-dist/patches-1.0.0.rvp        bundle pré-construit (DEX)
-research/instants/            notes de reverse-engineering (Frida, etc.)
-tools/mount-module/           module KernelSU (méthode mount alternative)
+patches/src/.../instants/InstantsGalleryPatch.kt   le patch (hooks A03/A01/A02 + onActivityResult)
+extensions/instants/                               extension Android (sélecteur + copie + ré-injection)
+patches/stub/                                      stubs d'API Android
+dist/patches-1.0.0.rvp                             bundle pré-construit (DEX + extension)
+research/instants/                                 notes de reverse-engineering
+tools/mount-module/                                module KernelSU (mount alternatif)
 ```
 
 ---
 
 ## Reverse-engineering
 
-Démarche complète (Instants = QuickSnap, string-pooling FB, UI Compose, pipeline
-Bitmap, anti-Frida de Meta, dex vs class) documentée dans
-[`research/instants/`](research/instants/).
+Démarche complète (Instants=QuickSnap, string-pooling FB, UI Compose, pipeline
+Bitmap, anti-Frida, dex vs class, scoped storage) : [`research/instants/`](research/instants/).
