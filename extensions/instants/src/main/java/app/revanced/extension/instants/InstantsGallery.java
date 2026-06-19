@@ -83,34 +83,29 @@ public final class InstantsGallery {
     }
 
     /**
-     * Copie l'URI choisie vers IMAGE_PATH de façon atomique : on écrit un .tmp
-     * puis on renomme, pour ne JAMAIS laisser le pipeline lire un instant.jpg
-     * tronqué si la copie échoue en cours de route. Retourne true si OK.
+     * Copie l'URI choisie vers IMAGE_PATH. Retourne true si OK.
+     *
+     * Écriture EN PLACE (overwrite/truncate du même fichier). SURTOUT PAS de
+     * tmp + rename : sur le stockage émulé Android (sdcardfs/FUSE), un rename
+     * par-dessus un fichier existant ne purge pas le cache du lecteur, donc
+     * BitmapFactory.decodeFile relit l'ANCIEN contenu -> on uploadait la photo
+     * de la fois précédente (off-by-one). L'overwrite en place réécrit le même
+     * inode -> le cache de page est à jour -> lecture fraîche garantie.
      */
     private static boolean copyToImagePath(Context ctx, Uri uri) {
         File dest = new File(IMAGE_PATH);
         File parent = dest.getParentFile();
         if (parent != null) parent.mkdirs();
-        File tmp = new File(IMAGE_PATH + ".tmp");
         try (InputStream in = ctx.getContentResolver().openInputStream(uri);
-             FileOutputStream fos = new FileOutputStream(tmp)) {
+             FileOutputStream fos = new FileOutputStream(dest)) { // truncate + overwrite
             if (in == null) return false;
             byte[] buf = new byte[8192];
             int n;
             while ((n = in.read(buf)) != -1) fos.write(buf, 0, n); // != -1, pas > 0
             fos.flush();
-            fos.getFD().sync(); // octets garantis sur disque avant le rename
+            fos.getFD().sync(); // octets garantis sur disque avant la relecture
         } catch (Throwable t) {
-            tmp.delete();
             return false;
-        }
-        if (!tmp.renameTo(dest)) {
-            // renameTo échoue si la cible existe déjà : on purge puis on retente.
-            dest.delete();
-            if (!tmp.renameTo(dest)) {
-                tmp.delete();
-                return false;
-            }
         }
         return true;
     }
