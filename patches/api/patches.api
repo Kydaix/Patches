@@ -1,0 +1,4 @@
+public final class app/revanced/patches/instagram/HelloWorldPatchKt {
+	public static final fun getHelloWorldPatch ()Lapp/revanced/patcher/patch/BytecodePatch;
+}
+

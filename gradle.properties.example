@@ -1,0 +1,5 @@
+# Copie ces deux lignes dans le fichier Gradle GLOBAL (jamais commité) :
+#   C:\Users\Administrator\.gradle\gradle.properties
+# Token GitHub avec le scope read:packages -> https://github.com/settings/tokens
+gpr.user=ton_pseudo_github
+gpr.key=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
