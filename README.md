@@ -85,13 +85,4 @@ patches/src/.../instants/InstantsGalleryPatch.kt   le patch (hooks A03/A01/A02 +
 extensions/instants/                               extension Android (sélecteur + copie + ré-injection)
 patches/stub/                                      stubs d'API Android
 dist/patches-1.0.0.rvp                             bundle pré-construit (DEX + extension)
-research/instants/                                 notes de reverse-engineering
-tools/mount-module/                                module KernelSU (mount alternatif)
 ```
-
----
-
-## Reverse-engineering
-
-Démarche complète (Instants=QuickSnap, string-pooling FB, UI Compose, pipeline
-Bitmap, anti-Frida, dex vs class, scoped storage) : [`research/instants/`](research/instants/).
