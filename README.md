@@ -1,103 +1,113 @@
-# Instagram ReVanced Patches
+# Instagram ReVanced — Patch "Instants : envoyer depuis la galerie"
 
-Projet de patchs [ReVanced](https://revanced.app) personnels ciblant l'application
-**Instagram** (`com.instagram.android`). Le build produit un fichier **`.rvp`**
-que l'on importe comme *source de patchs* dans **ReVanced Manager** sur le
-smartphone.
+Patch [ReVanced](https://revanced.app) personnel pour **Instagram** (`com.instagram.android`)
+qui permet d'envoyer une **photo de la galerie** dans **Instants** (la fonction de
+photos éphémères, nom de code interne *QuickSnap*), alors qu'Instagram impose
+normalement la caméra in-app.
 
-> Basé sur le [template officiel](https://github.com/ReVanced/revanced-patches-template)
-> (ReVanced Patcher `21.0.0`, plugin Gradle `app.revanced.patches:1.0.0-dev.5`).
+> Construit sur le [template officiel](https://github.com/ReVanced/revanced-patches-template)
+> (Patcher `21.0.0`, plugin Gradle `app.revanced.patches:1.0.0-dev.5`).
+> **Version Instagram ciblée : `434.0.0.44.74`.**
 
 ---
 
-## Prérequis
+## Comment ça marche
 
-| Outil | Pourquoi | État |
-|-------|----------|------|
-| **JDK 17+** | Compiler le projet Gradle/Kotlin | ✅ installé (Microsoft OpenJDK 17) |
-| **Token GitHub** (`read:packages`) | Les dépendances (patcher + plugin) sont sur **GitHub Packages**, qui exige une authentification même en lecture | ⚠️ à fournir |
-| **Android SDK** | Uniquement pour compiler le module `extensions/` (code Java/Kotlin injecté dans l'APK) | ⚠️ requis tant que le module `extensions/` existe |
+Instants n'a **aucun import galerie implémenté** : impossible de « réactiver » une
+fonction absente. Mais son pipeline d'envoi accepte un `Bitmap` —
+`com.instagram.quicksnap.camera.domain.QuickSnapCameraViewModel.A01/A02/A03(Context, Bitmap, …)`.
 
-### 1. Token GitHub (obligatoire)
+Le patch injecte à l'entrée de ces 3 méthodes un remplacement du `Bitmap` capturé
+par une image décodée depuis un chemin fixe :
 
-Crée un *Personal Access Token (classic)* avec le scope **`read:packages`** :
-<https://github.com/settings/tokens>
-
-Place-le dans le fichier Gradle **global** (jamais commité) :
-`C:\Users\Administrator\.gradle\gradle.properties`
-
-```properties
-gpr.user=ton_pseudo_github
-gpr.key=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```smali
+const-string p1, "/sdcard/Pictures/instant.jpg"
+invoke-static/range { p1 .. p1 }, Landroid/graphics/BitmapFactory;->decodeFile(Ljava/lang/String;)Landroid/graphics/Bitmap;
+move-result-object p1
 ```
 
-(Voir `gradle.properties.example`.) Alternative : les variables d'environnement
-`GITHUB_ACTOR` et `GITHUB_TOKEN`.
+**UX** : déposer la photo à envoyer dans `/sdcard/Pictures/instant.jpg`, puis
+capturer dans Instants (la caméra peut pointer n'importe où) → l'Instant utilise
+ta photo. Le ciblage se fait par **nom de classe** (`QuickSnapCameraViewModel`,
+non obfusqué), pas par chaîne (Instagram chiffre ses strings).
+
+Source du patch : [`patches/src/main/kotlin/app/revanced/patches/instagram/instants/InstantsGalleryPatch.kt`](patches/src/main/kotlin/app/revanced/patches/instagram/instants/InstantsGalleryPatch.kt).
+
+### ⚠️ Statut / inconnue restante
+
+Le patch **compile et s'injecte** correctement, et le mount sur l'appareil a été
+**vérifié** (MD5 identique). **Reste à confirmer côté serveur** : Instagram peut
+rejeter une image non issue de la caméra (preuve de capture). Non tranché à ce
+jour — à valider en envoyant un Instant réel.
 
 ---
 
-## Construire le `.rvp`
+## Le `.rvp`
+
+Pré-construit : [`dist/patches-1.0.4.rvp`](dist/patches-1.0.4.rvp).
+Pour le régénérer (nécessite un token GitHub `read:packages`, cf. plus bas) :
 
 ```powershell
-# JDK déjà sur le PATH après installation ; sinon :
-#   $env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot"
-
-.\gradlew.bat build
-```
-
-Le bundle est généré dans `patches\build\libs\` sous la forme
-`revanced-patches-instagram-<version>.rvp`.
-
----
-
-## Importer dans ReVanced Manager
-
-1. Transfère le fichier `.rvp` sur le téléphone.
-2. ReVanced Manager → réglages → **Patch sources** → ajoute le `.rvp` local.
-3. Sélectionne l'APK Instagram, choisis les patchs, applique.
-
----
-
-## Structure
-
-```
-patches/                         ← le sous-projet des patchs
-  build.gradle.kts               ← métadonnées (bloc about)
-  api/patches.api                ← API publique figée (validation binaire)
-  src/main/kotlin/app/revanced/patches/instagram/
-    HelloWorldPatch.kt           ← patch de démarrage (no-op, à compléter)
-extensions/extension/            ← code Java/Kotlin injecté dans l'APK (optionnel)
-gradle/libs.versions.toml        ← versions (patcher, smali)
-settings.gradle.kts              ← plugin + dépôt GitHub Packages
+.\gradlew.bat build   # -> patches\build\libs\patches-1.0.4.rvp
 ```
 
 ---
 
-## Écrire un vrai patch
+## L'appliquer toi-même
 
-Un patch suit toujours deux étapes :
+> Le `.rvp` est construit avec **Patcher 21.0.0**. Utilise donc un outil avec un
+> patcher compatible. **revanced-cli 5.0.1** l'est (testé). Les versions récentes
+> (revanced-cli 6.x, ReVanced Manager 2.7+) embarquent un patcher plus neuf où la
+> classe `BytecodePatch` a disparu → elles **refuseront** ce `.rvp` tel quel.
 
-1. **Fingerprint** — localiser une méthode dans le bytecode *obfusqué*
-   d'Instagram (par chaîne, opcodes, signature de méthode…). C'est l'étape de
-   reverse-engineering : il faut décompiler l'APK (ex. avec `jadx`) pour trouver
-   les points d'ancrage.
-2. **`execute { }`** — récupérer la méthode via le fingerprint et injecter du
-   smali (`addInstructions`, `replaceInstruction`, `addInstructionsWithLabels`…),
-   éventuellement en appelant du code depuis `extensions/`.
+### Méthode A — KernelSU (mount, sans désinstaller) ✅ testée
 
-Voir `HelloWorldPatch.kt` pour le squelette commenté.
+Téléphone rooté (Magisk/KernelSU). On patche **l'APK réellement installé** puis on
+le monte par-dessus via un module — pas de re-login, réversible.
 
-Après modification de l'API publique d'un patch, régénère la validation binaire :
+1. Extraire la base.apk installée :
+   ```bash
+   adb shell su -c "cp $(adb shell pm path com.instagram.android | grep base | sed 's/package://') /sdcard/ig_base.apk"
+   adb pull /sdcard/ig_base.apk
+   ```
+2. Patcher avec revanced-cli 5.0.1 :
+   ```bash
+   java -jar revanced-cli-5.0.1-all.jar patch -p dist/patches-1.0.4.rvp \
+     -e "Instants : envoyer depuis la galerie" --exclusive -f \
+     -o ig_base_patched.apk ig_base.apk
+   ```
+3. Créer un module KernelSU (template fourni dans [`tools/mount-module/`](tools/mount-module/)) :
+   copier `ig_base_patched.apk` en `com.instagram.android.apk` dans le module,
+   pousser le tout dans `/data/adb/modules/com.instagram.android-revanced/`, **reboot**.
+   Voir [`tools/mount-module/README.md`](tools/mount-module/README.md).
+4. Déposer ta photo en `/sdcard/Pictures/instant.jpg`, ouvrir Instants, capturer.
 
-```powershell
-.\gradlew.bat apiDump
+Pour **désinstaller** : supprimer `/data/adb/modules/com.instagram.android-revanced` + reboot.
+
+### Méthode B — sans root (install classique)
+
+Patcher l'APK (un APK **unique** ; pour Instagram en split, fusionner d'abord les
+splits avec [APKEditor](https://github.com/REAndroid/APKEditor) : `java -jar APKEditor.jar m -i bundle.apkm -o universal.apk`),
+puis :
+```bash
+java -jar revanced-cli-5.0.1-all.jar patch -p dist/patches-1.0.4.rvp \
+  -e "Instants : envoyer depuis la galerie" --exclusive -f -o patched.apk universal.apk
+adb uninstall com.instagram.android   # ⚠️ perte de la session locale
+adb install patched.apk
 ```
 
 ---
 
-## Note
+## Régénérer le `.rvp` (prérequis token)
 
-ReVanced n'a pas de patchs Instagram officiels — ce dépôt est un travail
-personnel. Le patcher est générique et peut cibler n'importe quel APK ; toute la
-difficulté est dans les fingerprints, à refaire à chaque grosse mise à jour
-d'Instagram (le code est ré-obfusqué).
+Les dépendances ReVanced sont sur **GitHub Packages** (auth obligatoire même en
+lecture). Crée un PAT `read:packages` (<https://github.com/settings/tokens>) et
+mets-le dans `~/.gradle/gradle.properties` (`gpr.user` / `gpr.key`, cf.
+`gradle.properties.example`). Puis `./gradlew.bat build`.
+
+---
+
+## Notes de reverse-engineering
+
+La découverte (Instants = QuickSnap, string-pooling FB, UI Compose, pipeline
+Bitmap, anti-Frida de Meta) est documentée dans [`research/instants/`](research/instants/).

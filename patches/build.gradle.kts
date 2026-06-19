@@ -1,5 +1,12 @@
 group = "app.instagram.revanced"
 
+kotlin {
+    compilerOptions {
+        // L'API des patchs (fingerprint.method, etc.) utilise des context receivers.
+        freeCompilerArgs.add("-Xcontext-receivers")
+    }
+}
+
 patches {
     about {
         name = "Instagram ReVanced Patches"
