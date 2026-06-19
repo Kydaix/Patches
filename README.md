@@ -1,91 +1,69 @@
-# Instagram ReVanced — Patch "Instants : importer depuis la galerie"
+# Instagram ReVanced - Instants depuis la galerie
 
-Patch [ReVanced](https://revanced.app) pour **Instagram** (`com.instagram.android`)
-qui permet d'**envoyer une photo de ta galerie dans Instants** (photos éphémères,
-nom de code interne *QuickSnap*), alors qu'Instagram impose la caméra in-app.
+Patch [ReVanced](https://revanced.app) pour **Instagram** (`com.instagram.android`) qui
+permet d'envoyer une photo de la galerie dans **Instants** au lieu d'utiliser la
+capture camera imposee par l'application.
 
-> Patcher `22.0.0` · plugin Gradle `app.revanced.patches:1.0.0-dev.10` · Gradle `9.3.1`.
-> `.rvp` avec DEX → **importable dans ReVanced Manager** (testé Manager `2.7.0-dev.5`).
-> Cible Instagram : **434.x**. ✅ Validé de bout en bout (le serveur accepte l'envoi).
+## Installation rapide
 
----
+1. Telecharge le bundle de patchs :
+   [revanced-instagram-patches.rvp](https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.rvp)
+2. Ouvre **ReVanced Manager**.
+3. Importe le fichier `.rvp` comme source/bundle de patchs local.
+4. Selectionne Instagram, active **Instants : importer depuis la galerie**, puis patche l'APK.
+
+Fallback si aucune release GitHub n'est encore disponible :
+[`dist/patches-latest.rvp`](dist/patches-latest.rvp) ou
+[`dist/patches-1.0.0.rvp`](dist/patches-1.0.0.rvp).
+
+## Compatibilite testee
+
+| Element | Version / valeur |
+| --- | --- |
+| Application cible | Instagram `com.instagram.android` |
+| Version Instagram | `434.x` |
+| ReVanced Patcher | `22.0.0` |
+| Plugin Gradle ReVanced | `app.revanced.patches:1.0.0-dev.10` |
+| ReVanced Manager | Manager v2 / patcher 22.x |
+| Bundle local | `dist/patches-latest.rvp` |
 
 ## Utilisation
 
-Après installation : ouvre **Instants** → écris une légende → appuie sur le
-**bouton de capture habituel**. Au lieu de prendre une photo caméra, un
-**sélecteur de galerie système s'ouvre** → choisis ta photo → elle part comme Instant.
+Apres installation, ouvre **Instants**, ecris une legende si besoin, puis appuie sur
+le bouton de capture habituel. Le selecteur de galerie systeme s'ouvre. Choisis une
+photo : elle est envoyee comme Instant.
 
-> Il n'y a pas de bouton dédié : le déclencheur de capture **est** le sélecteur
-> (ajouter un bouton dans l'UI Compose d'Instants serait bien plus complexe).
-> Aucune permission requise (sélecteur photo système `ACTION_PICK_IMAGES`).
+Il n'y a pas de bouton dedie. Le declencheur de capture devient le selecteur de
+galerie, ce qui evite de modifier l'UI Compose interne d'Instagram.
 
----
+## Documentation
 
-## Comment ça marche
+- [Installer avec ReVanced Manager](docs/INSTALL_MANAGER.md)
+- [Construire le bundle localement](docs/BUILD.md)
+- [Depannage](docs/TROUBLESHOOTING.md)
+- [Historique des changements](CHANGELOG.md)
 
-Instants n'a aucun import galerie implémenté, mais son pipeline accepte un `Bitmap` :
-`com.instagram.quicksnap.camera.domain.QuickSnapCameraViewModel.A01/A02/A03(Context, Bitmap, …)`.
+## Organisation du repo
 
-1. **`A03`** (arrivée de la capture) : on appelle l'extension qui lance le
-   **sélecteur photo** ; la capture caméra est annulée.
-2. **`ModalActivity.onActivityResult`** : à la sélection, l'extension copie l'image
-   choisie dans le **dossier privé d'Instagram**, sous
-   `/sdcard/Android/data/com.instagram.android/files/revanced_instants/`, avec
-   un nom unique par sélection, puis re-déclenche `A03`.
-3. **`A01/A02`** servent aussi de filet de sécurité : si le premier upload part
-   sans repasser par `A03`, ils ouvrent le sélecteur et annulent l'upload caméra.
-4. **`A01/A02/A03`** lisent le fichier choisi (`BitmapFactory.decodeFile`, *null-safe*) →
-   l'Instant part avec ta photo.
-
-> Le dossier privé d'IG est crucial : un chemin `/sdcard/Pictures` échoue
-> (`decodeFile` renvoie null à cause du scoped storage → NPE → pas d'upload).
-
-Sources : [`patches/.../instants/InstantsGalleryPatch.kt`](patches/src/main/kotlin/app/revanced/patches/instagram/instants/InstantsGalleryPatch.kt)
-· extension [`extensions/instants/`](extensions/instants/).
-
----
-
-## Le `.rvp` (pour ReVanced Manager)
-
-[`dist/patches-1.0.0.rvp`](dist/patches-1.0.0.rvp) — contient le DEX + l'extension.
-
-**Import dans ReVanced Manager :** sources → ajouter → depuis le stockage → choisir
-le `.rvp`. Sélectionner Instagram, activer *« Instants : importer depuis la galerie »*,
-patcher. Compatibilité : patcher **22.x** (Manager 2.7+, revanced-cli 6.x ; ❌ cli ≤ 5.x).
-
-**APK à patcher :** Instagram est en *split* ; ReVanced Manager veut un APK unique.
-Fusionne les splits avec [APKEditor](https://github.com/REAndroid/APKEditor) :
-`java -jar APKEditor.jar m -i bundle.apks -o single.apk`. Prends une source avec la
-**vraie base + le split arm64** (sinon l'APK plante, libs natives manquantes).
-
-> Sur Xiaomi/HyperOS, `adb install` peut être bloqué (`USER_RESTRICTED`) : installe
-> en root (`su -c 'pm install single_patched.apk'`).
-
----
-
-## Construire le `.rvp` soi-même
-
-Prérequis :
-- **JDK 17+**
-- **Token GitHub `read:packages`** dans `~/.gradle/gradle.properties`
-  (`githubPackagesUsername` / `githubPackagesPassword`, cf. `gradle.properties.example`)
-- **SDK Android** (android-34 + build-tools 34) — requis par le module extension.
-  Renseigner `local.properties` : `sdk.dir=C:/chemin/vers/Android/Sdk`
-
-Puis — **tâche `buildAndroid`** (compile l'extension en DEX et l'ajoute au `.rvp`) :
-```powershell
-.\gradlew.bat :patches:buildAndroid
-# -> patches\build\libs\patches-1.0.0.rvp
+```text
+patches/src/.../instants/InstantsGalleryPatch.kt   patch ReVanced
+extensions/instants/                               extension Android injectee
+dist/patches-latest.rvp                            bundle local importable
+docs/                                              installation, build, depannage
+.github/workflows/release.yml                      publication des assets GitHub Release
 ```
 
----
+## Fonctionnement technique
 
-## Structure
+Instants n'a pas d'import galerie public, mais son pipeline interne accepte un
+`Bitmap` via `QuickSnapCameraViewModel.A01/A02/A03`.
 
-```
-patches/src/.../instants/InstantsGalleryPatch.kt   le patch (hooks A03/A01/A02 + onActivityResult)
-extensions/instants/                               extension Android (sélecteur + copie + ré-injection)
-patches/stub/                                      stubs d'API Android
-dist/patches-1.0.0.rvp                             bundle pré-construit (DEX + extension)
-```
+Le patch intercepte `A03` pour ouvrir le selecteur galerie, copie l'image choisie
+dans le dossier prive d'Instagram sous `revanced_instants/`, puis reinjecte cette
+image dans le pipeline QuickSnap. `A01` et `A02` servent de filet de securite pour
+annuler un upload camera si Instagram tente de publier avant la reinjection.
+
+Sources principales :
+
+- [`InstantsGalleryPatch.kt`](patches/src/main/kotlin/app/revanced/patches/instagram/instants/InstantsGalleryPatch.kt)
+- [`InstantsGallery.java`](extensions/instants/src/main/java/app/revanced/extension/instants/InstantsGallery.java)
