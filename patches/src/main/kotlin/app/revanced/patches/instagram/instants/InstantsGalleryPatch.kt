@@ -14,21 +14,22 @@ import app.revanced.patcher.patch.bytecodePatch
  *
  * - A03 : à la capture caméra, on appelle l'extension qui lance le SÉLECTEUR
  *   photo système ; la capture caméra est annulée. Quand l'utilisateur choisit
- *   une image, l'extension la copie dans IMAGE_PATH et re-déclenche A03.
- * - A01/A02/A03 (re-déclenché) : on remplace le Bitmap par l'image de IMAGE_PATH
- *   (lecture fiable depuis le dossier privé d'Instagram). Sécurité null : si
- *   l'image manque, on garde le Bitmap d'origine.
+ *   une image, l'extension la copie dans un fichier privé unique et re-déclenche
+ *   A03.
+ * - A01/A02 : filet de sécurité si le premier flux d'upload part sans passer
+ *   par A03 (observé au premier lancement propre) : on lance le sélecteur et on
+ *   annule l'upload courant.
+ * - A01/A02/A03 (re-déclenché) : on remplace le Bitmap par l'image choisie
+ *   depuis l'extension. Sécurité null : si l'image manque, on garde l'original.
  * - ModalActivity.onActivityResult : transmet le résultat du sélecteur à l'extension.
  */
 
-private const val IMAGE_PATH = "/sdcard/Android/data/com.instagram.android/files/instant.jpg"
 private const val VM_CLASS = "Lcom/instagram/quicksnap/camera/domain/QuickSnapCameraViewModel;"
 private const val EXT = "Lapp/revanced/extension/instants/InstantsGallery;"
 
-// Remplace p1 (Bitmap) par l'image de IMAGE_PATH si décodable, sinon garde l'original.
+// Remplace p1 (Bitmap) par l'image choisie si décodable, sinon garde l'original.
 private val swapBitmap = """
-    const-string v0, "$IMAGE_PATH"
-    invoke-static { v0 }, Landroid/graphics/BitmapFactory;->decodeFile(Ljava/lang/String;)Landroid/graphics/Bitmap;
+    invoke-static { }, $EXT->imageBitmap()Landroid/graphics/Bitmap;
     move-result-object v0
     if-eqz v0, :revanced_keep
     move-object/from16 p1, v0
@@ -36,13 +37,23 @@ private val swapBitmap = """
     nop
 """
 
+// A01/A02 retournent Object (suspend). Si le flux d'upload démarre avant notre
+// interception A03, on ouvre le sélecteur et on retourne Unit pour annuler cet
+// upload caméra.
+private val interceptUpload = """
+    invoke-static { p0, p2 }, $EXT->requestPickForUpload(Landroid/content/Context;Ljava/lang/Object;)Z
+    move-result v0
+    if-eqz v0, :revanced_upload_continue
+    sget-object v0, LX/07Eb;->A00:LX/07Eb;
+    return-object v0
+    :revanced_upload_continue
+    nop
+"""
+
 // A02 : swap du Bitmap (p1) ET du File (p3). Le vrai upload construit un Medium
-// depuis le File (chemin runtime), pas depuis le Bitmap -> rediriger p3 vers
-// notre image est ce qui corrige l'off-by-one. p1/p3 sont capturés dans le
-// lambda de transcodage AVANT l'appel suspend, donc le swap à l'entrée propage.
+// depuis le File (chemin runtime), pas seulement depuis le Bitmap.
 private val swapBitmapAndFile = """
-    const-string v0, "$IMAGE_PATH"
-    invoke-static { v0 }, Landroid/graphics/BitmapFactory;->decodeFile(Ljava/lang/String;)Landroid/graphics/Bitmap;
+    invoke-static { }, $EXT->imageBitmap()Landroid/graphics/Bitmap;
     move-result-object v0
     if-eqz v0, :revanced_keep_bmp
     move-object/from16 p1, v0
@@ -57,14 +68,12 @@ private val swapBitmapAndFile = """
 
 // A03 : intercepte la capture caméra pour ouvrir le sélecteur ; sinon swap.
 private val interceptThenSwap = """
-    invoke-static { }, $EXT->shouldIntercept()Z
+    invoke-static { p0, p2 }, $EXT->requestPickForCapture(Landroid/content/Context;Ljava/lang/Object;)Z
     move-result v0
     if-eqz v0, :revanced_swap
-    invoke-static { p0, p2 }, $EXT->startPick(Landroid/content/Context;Ljava/lang/Object;)V
     return-void
     :revanced_swap
-    const-string v0, "$IMAGE_PATH"
-    invoke-static { v0 }, Landroid/graphics/BitmapFactory;->decodeFile(Ljava/lang/String;)Landroid/graphics/Bitmap;
+    invoke-static { }, $EXT->imageBitmap()Landroid/graphics/Bitmap;
     move-result-object v0
     if-eqz v0, :revanced_keep
     move-object/from16 p1, v0
@@ -103,9 +112,9 @@ val instantsGalleryPatch = bytecodePatch(
     extendWith("extensions/instants.rve")
 
     execute {
-        // Upload (suspend) : remplacer le bitmap (A01) ; bitmap + File (A02).
-        a01Fingerprint.method.addInstructions(0, swapBitmap)
-        a02Fingerprint.method.addInstructions(0, swapBitmapAndFile)
+        // Upload (suspend) : intercepter les uploads caméra précoces, puis swap.
+        a01Fingerprint.method.addInstructions(0, interceptUpload + swapBitmap)
+        a02Fingerprint.method.addInstructions(0, interceptUpload + swapBitmapAndFile)
         // Capture : intercepter -> sélecteur, sinon swap.
         a03Fingerprint.method.addInstructions(0, interceptThenSwap)
         // Résultat du sélecteur -> extension.

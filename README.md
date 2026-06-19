@@ -30,9 +30,12 @@ Instants n'a aucun import galerie implémenté, mais son pipeline accepte un `Bi
 1. **`A03`** (arrivée de la capture) : on appelle l'extension qui lance le
    **sélecteur photo** ; la capture caméra est annulée.
 2. **`ModalActivity.onActivityResult`** : à la sélection, l'extension copie l'image
-   choisie dans le **dossier privé d'Instagram**
-   (`/sdcard/Android/data/com.instagram.android/files/instant.jpg`) puis re-déclenche `A03`.
-3. **`A01/A02/A03`** lisent ce fichier (`BitmapFactory.decodeFile`, *null-safe*) →
+   choisie dans le **dossier privé d'Instagram**, sous
+   `/sdcard/Android/data/com.instagram.android/files/revanced_instants/`, avec
+   un nom unique par sélection, puis re-déclenche `A03`.
+3. **`A01/A02`** servent aussi de filet de sécurité : si le premier upload part
+   sans repasser par `A03`, ils ouvrent le sélecteur et annulent l'upload caméra.
+4. **`A01/A02/A03`** lisent le fichier choisi (`BitmapFactory.decodeFile`, *null-safe*) →
    l'Instant part avec ta photo.
 
 > Le dossier privé d'IG est crucial : un chemin `/sdcard/Pictures` échoue
