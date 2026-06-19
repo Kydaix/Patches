@@ -1,4 +1,0 @@
-public final class app/revanced/patches/instagram/instants/InstantsGalleryPatchKt {
-	public static final fun getInstantsGalleryPatch ()Lapp/revanced/patcher/patch/BytecodePatch;
-}
-
