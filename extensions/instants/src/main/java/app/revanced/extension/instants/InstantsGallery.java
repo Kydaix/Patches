@@ -1,7 +1,6 @@
 package app.revanced.extension.instants;
 
 import android.app.Activity;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -33,8 +32,8 @@ public final class InstantsGallery {
             "/sdcard/Android/data/com.instagram.android/files/instant.jpg";
 
     private static volatile boolean injecting = false;
-    private static Context pendingContext;
-    private static Object pendingViewModel;
+    private static volatile Context pendingContext;
+    private static volatile Object pendingViewModel;
 
     /** Appelé tout au début de A03. true => intercepter la capture caméra. */
     public static boolean shouldIntercept() {
@@ -69,39 +68,65 @@ public final class InstantsGallery {
         final Uri uri = data.getData();
         final Context ctx = pendingContext;
         final Object vm = pendingViewModel;
+        // Relâche les refs statiques tout de suite : évite de retenir l'Activity.
+        pendingContext = null;
+        pendingViewModel = null;
         if (uri == null || ctx == null || vm == null) return;
 
-        // Copier l'image choisie vers le fichier lu par le patch.
-        try {
-            ContentResolver cr = ctx.getContentResolver();
-            InputStream in = cr.openInputStream(uri);
-            if (in == null) return;
-            File out = new File(IMAGE_PATH);
-            File parent = out.getParentFile();
-            if (parent != null) parent.mkdirs();
-            FileOutputStream fos = new FileOutputStream(out);
+        // Copie + ré-injection HORS du thread UI : openInputStream + la boucle de
+        // lecture peuvent bloquer (gros fichier, URI cloud/distant) -> ANR si
+        // exécuté sur le main thread (onActivityResult y est appelé).
+        new Thread(() -> {
+            if (!copyToImagePath(ctx, uri)) return; // copie ratée -> on n'injecte rien
+            new Handler(Looper.getMainLooper()).post(() -> reinjectA03(ctx, vm));
+        }, "instants-copy").start();
+    }
+
+    /**
+     * Copie l'URI choisie vers IMAGE_PATH de façon atomique : on écrit un .tmp
+     * puis on renomme, pour ne JAMAIS laisser le pipeline lire un instant.jpg
+     * tronqué si la copie échoue en cours de route. Retourne true si OK.
+     */
+    private static boolean copyToImagePath(Context ctx, Uri uri) {
+        File dest = new File(IMAGE_PATH);
+        File parent = dest.getParentFile();
+        if (parent != null) parent.mkdirs();
+        File tmp = new File(IMAGE_PATH + ".tmp");
+        try (InputStream in = ctx.getContentResolver().openInputStream(uri);
+             FileOutputStream fos = new FileOutputStream(tmp)) {
+            if (in == null) return false;
             byte[] buf = new byte[8192];
             int n;
-            while ((n = in.read(buf)) > 0) fos.write(buf, 0, n);
-            fos.close();
-            in.close();
+            while ((n = in.read(buf)) != -1) fos.write(buf, 0, n); // != -1, pas > 0
+            fos.flush();
+            fos.getFD().sync(); // octets garantis sur disque avant le rename
         } catch (Throwable t) {
-            return;
+            tmp.delete();
+            return false;
         }
-
-        // Re-déclencher A03 sur le thread principal avec la photo choisie.
-        new Handler(Looper.getMainLooper()).post(() -> {
-            try {
-                injecting = true;
-                Method a03 = vm.getClass().getDeclaredMethod(
-                        "A03", Context.class, Bitmap.class, vm.getClass());
-                a03.setAccessible(true);
-                a03.invoke(null, ctx, null, vm); // static : receiver null
-            } catch (Throwable ignored) {
-            } finally {
-                injecting = false;
+        if (!tmp.renameTo(dest)) {
+            // renameTo échoue si la cible existe déjà : on purge puis on retente.
+            dest.delete();
+            if (!tmp.renameTo(dest)) {
+                tmp.delete();
+                return false;
             }
-        });
+        }
+        return true;
+    }
+
+    /** Re-déclenche A03 sur le thread principal avec la photo choisie. */
+    private static void reinjectA03(Context ctx, Object vm) {
+        try {
+            injecting = true;
+            Method a03 = vm.getClass().getDeclaredMethod(
+                    "A03", Context.class, Bitmap.class, vm.getClass());
+            a03.setAccessible(true);
+            a03.invoke(null, ctx, null, vm); // static : receiver null
+        } catch (Throwable ignored) {
+        } finally {
+            injecting = false;
+        }
     }
 
     /** Activité au premier plan via ActivityThread (sans dépendances). */
