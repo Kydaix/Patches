@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.0.2 - 2026-06-20
+
+- Corrige un `VerifyError` dans `QuickSnapCameraViewModel.A02` sur Android.
+- Copie les parametres `A02` dans des registres bas avant l'appel extension pour
+  eviter un `invoke-static` invalide avec les registres hauts de cette methode.
+
 ## 1.0.1 - 2026-06-20
 
 - Corrige un crash lors de l'ouverture de la page Instants.

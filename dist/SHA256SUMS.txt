@@ -1,2 +1,2 @@
-fd458ec5a4493af1a5a4b00bc2ad4365cf7e57e7678f7708a75bb0696ecdff47  patches-1.0.1.rvp
-fd458ec5a4493af1a5a4b00bc2ad4365cf7e57e7678f7708a75bb0696ecdff47  patches-latest.rvp
+345d564bf5486cdbfb52c75d513eadb67a3cef47113cc780489dbc1b80b5f1b5  patches-1.0.2.rvp
+345d564bf5486cdbfb52c75d513eadb67a3cef47113cc780489dbc1b80b5f1b5  patches-latest.rvp

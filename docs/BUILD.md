@@ -25,21 +25,21 @@ Le token doit avoir le scope `read:packages`.
 Le bundle est genere ici :
 
 ```text
-patches/build/libs/patches-1.0.1.rvp
+patches/build/libs/patches-1.0.2.rvp
 ```
 
 Pour actualiser le bundle distribue dans le repo :
 
 ```powershell
-Copy-Item patches\build\libs\patches-1.0.1.rvp dist\patches-latest.rvp -Force
-Copy-Item patches\build\libs\patches-1.0.1.rvp dist\patches-1.0.1.rvp -Force
+Copy-Item patches\build\libs\patches-1.0.2.rvp dist\patches-latest.rvp -Force
+Copy-Item patches\build\libs\patches-1.0.2.rvp dist\patches-1.0.2.rvp -Force
 ```
 
 ## Checksums
 
 ```powershell
 certutil -hashfile dist\patches-latest.rvp SHA256
-certutil -hashfile dist\patches-1.0.1.rvp SHA256
+certutil -hashfile dist\patches-1.0.2.rvp SHA256
 ```
 
 Les valeurs doivent etre reportees dans `dist/SHA256SUMS.txt`.
@@ -50,8 +50,8 @@ Le workflow `.github/workflows/release.yml` publie automatiquement les assets qu
 un tag `v*` est pousse :
 
 ```powershell
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
 Assets publies :

@@ -42,7 +42,9 @@ private val swapBitmap = """
 // upload caméra. Important : A01/A02 ne doivent pas ouvrir le sélecteur eux-mêmes,
 // car ces méthodes peuvent être touchées pendant l'initialisation d'Instants.
 private val interceptUpload = """
-    invoke-static { p0, p2 }, $EXT->requestPickForUpload(Landroid/content/Context;Ljava/lang/Object;)Z
+    move-object/from16 v0, p0
+    move-object/from16 v1, p2
+    invoke-static { v0, v1 }, $EXT->requestPickForUpload(Landroid/content/Context;Ljava/lang/Object;)Z
     move-result v0
     if-eqz v0, :revanced_upload_continue
     sget-object v0, LX/07Eb;->A00:LX/07Eb;
