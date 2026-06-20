@@ -3,8 +3,10 @@
 ## Manager refuse le bundle
 
 - Utilise ReVanced Manager v2 / Patcher 22.x.
-- Importe le fichier `.rvp`, pas le ZIP du code source GitHub.
-- Reessaie avec l'asset de release `revanced-instagram-patches.rvp`.
+- Pour une source distante, utilise `revanced-instagram-patches.json`, pas le ZIP du
+  code source GitHub.
+- Pour un import local, utilise `revanced-instagram-patches.rvp`.
+- Reessaie avec les assets de la derniere release GitHub.
 
 ## Instagram plante au lancement
 

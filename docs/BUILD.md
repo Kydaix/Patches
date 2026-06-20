@@ -25,21 +25,22 @@ Le token doit avoir le scope `read:packages`.
 Le bundle est genere ici :
 
 ```text
-patches/build/libs/patches-1.0.4.rvp
+patches/build/libs/patches-1.0.5.rvp
 ```
 
 Pour actualiser le bundle distribue dans le repo :
 
 ```powershell
-Copy-Item patches\build\libs\patches-1.0.4.rvp dist\patches-latest.rvp -Force
-Copy-Item patches\build\libs\patches-1.0.4.rvp dist\patches-1.0.4.rvp -Force
+Copy-Item patches\build\libs\patches-1.0.5.rvp dist\patches-latest.rvp -Force
+Copy-Item patches\build\libs\patches-1.0.5.rvp dist\patches-1.0.5.rvp -Force
 ```
 
 ## Checksums
 
 ```powershell
 certutil -hashfile dist\patches-latest.rvp SHA256
-certutil -hashfile dist\patches-1.0.4.rvp SHA256
+certutil -hashfile dist\patches-1.0.5.rvp SHA256
+certutil -hashfile dist\patches.json SHA256
 ```
 
 Les valeurs doivent etre reportees dans `dist/SHA256SUMS.txt`.
@@ -50,15 +51,19 @@ Le workflow `.github/workflows/release.yml` publie automatiquement les assets qu
 un tag `v*` est pousse :
 
 ```powershell
-git tag v1.0.4
-git push origin v1.0.4
+git tag v1.0.5
+git push origin v1.0.5
 ```
 
 Assets publies :
 
+- `revanced-instagram-patches.json` : source distante a ajouter dans Manager ;
 - `revanced-instagram-patches.rvp` : nom stable a utiliser dans le README ;
 - `revanced-instagram-patches-<version>.rvp` : asset versionne ;
 - `SHA256SUMS.txt` : checksums de la release.
+
+La source JSON suit le format `ReVancedAsset` attendu par Manager v2 et pointe vers
+l'asset stable `.rvp`.
 
 ## Secrets CI
 

@@ -4,17 +4,29 @@ Patch [ReVanced](https://revanced.app) pour **Instagram** (`com.instagram.androi
 permet d'envoyer une photo de la galerie dans **Instants** au lieu d'utiliser la
 capture camera imposee par l'application.
 
-## Installation rapide
+## Installation rapide avec mises a jour
 
-1. Telecharge le bundle de patchs :
-   [revanced-instagram-patches.rvp](https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.rvp)
-2. Ouvre **ReVanced Manager**.
-3. Importe le fichier `.rvp` comme source/bundle de patchs local.
-4. Selectionne Instagram, active **Instants : importer depuis la galerie**, puis patche l'APK.
+Dans **ReVanced Manager v2**, ajoute cette URL comme source distante de patches :
+
+```text
+https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.json
+```
+
+Garde **Auto update** active. Manager telecharge ensuite automatiquement le dernier
+bundle `.rvp` reference par cette source.
+
+Ensuite, selectionne Instagram, active **Instants : importer depuis la galerie**, puis
+patche l'APK.
+
+## Import local de secours
+
+Si la source distante ne fonctionne pas, telecharge et importe manuellement ce bundle :
+
+[revanced-instagram-patches.rvp](https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.rvp)
 
 Fallback si aucune release GitHub n'est encore disponible :
 [`dist/patches-latest.rvp`](dist/patches-latest.rvp) ou
-[`dist/patches-1.0.4.rvp`](dist/patches-1.0.4.rvp).
+[`dist/patches-1.0.5.rvp`](dist/patches-1.0.5.rvp).
 
 ## Compatibilite testee
 
@@ -26,6 +38,7 @@ Fallback si aucune release GitHub n'est encore disponible :
 | Plugin Gradle ReVanced | `app.revanced.patches:1.0.0-dev.10` |
 | ReVanced Manager | Manager v2 / patcher 22.x |
 | Bundle local | `dist/patches-latest.rvp` |
+| Source distante | `dist/patches.json` |
 
 ## Utilisation
 
@@ -40,6 +53,7 @@ galerie, ce qui evite de modifier l'UI Compose interne d'Instagram.
 
 - [Installer avec ReVanced Manager](docs/INSTALL_MANAGER.md)
 - [Construire le bundle localement](docs/BUILD.md)
+- [Organisation du repo](docs/REPO_MODEL.md)
 - [Depannage](docs/TROUBLESHOOTING.md)
 - [Historique des changements](CHANGELOG.md)
 
@@ -48,6 +62,7 @@ galerie, ce qui evite de modifier l'UI Compose interne d'Instagram.
 ```text
 patches/src/.../instants/InstantsGalleryPatch.kt   patch ReVanced
 extensions/instants/                               extension Android injectee
+dist/patches.json                                  source distante Manager
 dist/patches-latest.rvp                            bundle local importable
 docs/                                              installation, build, depannage
 .github/workflows/release.yml                      publication des assets GitHub Release

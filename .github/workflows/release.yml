@@ -53,10 +53,20 @@ jobs:
           test -n "${rvp_file}"
 
           version="${GITHUB_REF_NAME#v}"
+          created_at="$(date -u +'%Y-%m-%dT%H:%M:%S')"
           cp "${rvp_file}" release/revanced-instagram-patches.rvp
           cp "${rvp_file}" "release/revanced-instagram-patches-${version}.rvp"
 
-          (cd release && sha256sum *.rvp > SHA256SUMS.txt)
+          cat > release/revanced-instagram-patches.json <<EOF
+          {
+            "version": "${GITHUB_REF_NAME}",
+            "created_at": "${created_at}",
+            "description": "Instagram ReVanced Patches ${version}",
+            "download_url": "https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.rvp"
+          }
+          EOF
+
+          (cd release && sha256sum *.rvp *.json > SHA256SUMS.txt)
 
       - name: Publish GitHub release
         env:

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.0.5 - 2026-06-20
+
+- Ajoute une source distante JSON compatible ReVanced Manager v2.
+- Publie `revanced-instagram-patches.json` avec les assets de release pour permettre
+  l'auto-update du bundle.
+- Clarifie la documentation entre source distante et import local `.rvp`.
+- Documente l'organisation du repo inspiree du modele ReVanced officiel.
+
 ## 1.0.4 - 2026-06-20
 
 - Relance l'upload QuickSnap capture pendant que le selecteur galerie est ouvert.
