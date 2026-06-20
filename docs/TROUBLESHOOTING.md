@@ -30,8 +30,9 @@ java -jar APKEditor.jar m -i bundle.apks -o instagram-single.apk
 ## La mauvaise photo est envoyee
 
 Ce bug etait cause par un etat QuickSnap reutilise trop tot et par un fichier cache
-unique. Le patch actuel force une selection avant upload, utilise un fichier unique
-par image et remplace aussi le `File` passe a `A02`.
+unique. Le patch actuel utilise un fichier unique par image, remplace aussi le
+`File` passe a `A02` et annule les uploads camera qui partent pendant qu'un
+selecteur galerie est deja ouvert.
 
 Si le probleme reapparait :
 

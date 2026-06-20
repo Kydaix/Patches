@@ -14,7 +14,7 @@ capture camera imposee par l'application.
 
 Fallback si aucune release GitHub n'est encore disponible :
 [`dist/patches-latest.rvp`](dist/patches-latest.rvp) ou
-[`dist/patches-1.0.0.rvp`](dist/patches-1.0.0.rvp).
+[`dist/patches-1.0.1.rvp`](dist/patches-1.0.1.rvp).
 
 ## Compatibilite testee
 

@@ -2,6 +2,7 @@ package app.revanced.extension.instants;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -23,7 +24,7 @@ import java.util.Map;
  *  - A03 (capture) appelle requestPickForCapture(); si true -> le sélecteur
  *    photo système est lancé et la capture caméra est annulée.
  *  - A01/A02 appellent requestPickForUpload() comme filet de sécurité si un
- *    premier upload caméra démarre sans passer par A03.
+ *    upload caméra démarre pendant qu'un sélecteur ouvert par A03 est actif.
  *  - ModalActivity.onActivityResult() transmet le résultat ici : on copie
  *    l'image choisie vers un fichier privé unique puis on RE-déclenche A03
  *    (injecting=true), ce qui fait repartir le pipeline avec la photo choisie.
@@ -53,6 +54,14 @@ public final class InstantsGallery {
     }
 
     /** Appelé au début de A03. true => le picker est lancé et la capture est annulée. */
+    public static boolean requestPickForCapture(Context context, Bitmap originalBitmap, Object viewModel) {
+        if (injecting) return false;
+        if (originalBitmap == null) return false;
+        clearSelection();
+        return beginPick(context, viewModel);
+    }
+
+    /** Compat ancien patch. */
     public static boolean requestPickForCapture(Context context, Object viewModel) {
         if (injecting) return false;
         clearSelection();
@@ -60,14 +69,18 @@ public final class InstantsGallery {
     }
 
     /**
-     * Filet de sécurité au début de A01/A02 : certains premiers uploads propres
-     * peuvent partir sans repasser par A03. true => le picker est lancé et
-     * l'upload caméra courant doit être annulé.
+     * Filet de sécurité au début de A01/A02. Ne lance jamais le picker : il annule
+     * uniquement un upload caméra qui part pendant qu'un picker déjà ouvert attend
+     * la sélection utilisateur.
      */
     public static boolean requestPickForUpload(Context context, Object viewModel) {
         if (injecting || allowUpload) return false;
-        clearSelection();
-        return beginPick(context, viewModel);
+        synchronized (InstantsGallery.class) {
+            if (!picking) return false;
+            if (pendingContext == null) pendingContext = context;
+            if (pendingViewModel == null) pendingViewModel = viewModel;
+            return true;
+        }
     }
 
     /**
@@ -119,9 +132,8 @@ public final class InstantsGallery {
                 if (picking) return true;
             }
 
-            Activity activity = context instanceof Activity
-                    ? (Activity) context
-                    : getForegroundActivity();
+            Activity activity = activityFromContext(context);
+            if (activity == null) activity = getForegroundActivity();
             if (activity == null) {
                 synchronized (InstantsGallery.class) {
                     pendingContext = null;
@@ -150,6 +162,16 @@ public final class InstantsGallery {
             }
             return false;
         }
+    }
+
+    private static Activity activityFromContext(Context context) {
+        while (context instanceof ContextWrapper) {
+            if (context instanceof Activity) return (Activity) context;
+            Context base = ((ContextWrapper) context).getBaseContext();
+            if (base == null || base == context) break;
+            context = base;
+        }
+        return context instanceof Activity ? (Activity) context : null;
     }
 
     /** Branché au début de ModalActivity.onActivityResult(int, int, Intent). */

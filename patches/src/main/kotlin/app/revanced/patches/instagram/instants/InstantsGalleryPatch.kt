@@ -16,9 +16,9 @@ import app.revanced.patcher.patch.bytecodePatch
  *   photo système ; la capture caméra est annulée. Quand l'utilisateur choisit
  *   une image, l'extension la copie dans un fichier privé unique et re-déclenche
  *   A03.
- * - A01/A02 : filet de sécurité si le premier flux d'upload part sans passer
- *   par A03 (observé au premier lancement propre) : on lance le sélecteur et on
- *   annule l'upload courant.
+ * - A01/A02 : filet de sécurité si un upload caméra part pendant qu'un
+ *   sélecteur ouvert par A03 attend encore l'utilisateur : on annule l'upload
+ *   courant sans ouvrir un second sélecteur.
  * - A01/A02/A03 (re-déclenché) : on remplace le Bitmap par l'image choisie
  *   depuis l'extension. Sécurité null : si l'image manque, on garde l'original.
  * - ModalActivity.onActivityResult : transmet le résultat du sélecteur à l'extension.
@@ -37,9 +37,10 @@ private val swapBitmap = """
     nop
 """
 
-// A01/A02 retournent Object (suspend). Si le flux d'upload démarre avant notre
-// interception A03, on ouvre le sélecteur et on retourne Unit pour annuler cet
-// upload caméra.
+// A01/A02 retournent Object (suspend). Si un upload caméra démarre pendant que le
+// sélecteur ouvert par A03 est encore actif, on retourne Unit pour annuler cet
+// upload caméra. Important : A01/A02 ne doivent pas ouvrir le sélecteur eux-mêmes,
+// car ces méthodes peuvent être touchées pendant l'initialisation d'Instants.
 private val interceptUpload = """
     invoke-static { p0, p2 }, $EXT->requestPickForUpload(Landroid/content/Context;Ljava/lang/Object;)Z
     move-result v0
@@ -68,7 +69,7 @@ private val swapBitmapAndFile = """
 
 // A03 : intercepte la capture caméra pour ouvrir le sélecteur ; sinon swap.
 private val interceptThenSwap = """
-    invoke-static { p0, p2 }, $EXT->requestPickForCapture(Landroid/content/Context;Ljava/lang/Object;)Z
+    invoke-static { p0, p1, p2 }, $EXT->requestPickForCapture(Landroid/content/Context;Landroid/graphics/Bitmap;Ljava/lang/Object;)Z
     move-result v0
     if-eqz v0, :revanced_swap
     return-void
