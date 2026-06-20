@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.0.4 - 2026-06-20
+
+- Relance l'upload QuickSnap capture pendant que le selecteur galerie est ouvert.
+- Capture les arguments complets de `A01/A02`, puis rejoue l'upload avec le
+  `Bitmap` et le `File` de la photo choisie.
+- Ajoute une continuation reflective minimale pour relancer les fonctions suspend
+  d'Instagram sans reutiliser la coroutine deja terminee.
+
 ## 1.0.3 - 2026-06-20
 
 - Corrige le cas ou la photo choisie est bien copiee mais ne part pas en upload.

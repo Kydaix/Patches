@@ -41,10 +41,32 @@ private val swapBitmap = """
 // sélecteur ouvert par A03 est encore actif, on retourne Unit pour annuler cet
 // upload caméra. Important : A01/A02 ne doivent pas ouvrir le sélecteur eux-mêmes,
 // car ces méthodes peuvent être touchées pendant l'initialisation d'Instants.
-private val interceptUpload = """
+private val interceptUploadA01 = """
     move-object/from16 v0, p0
-    move-object/from16 v1, p2
-    invoke-static { v0, v1 }, $EXT->requestPickForUpload(Landroid/content/Context;Ljava/lang/Object;)Z
+    move-object/from16 v1, p1
+    move-object/from16 v2, p2
+    move-object/from16 v3, p3
+    move-object/from16 v4, p4
+    move-object/from16 v5, p5
+    move-wide/from16 v6, p7
+    invoke-static/range { v0 .. v7 }, $EXT->requestPickForUploadA01(Landroid/content/Context;Landroid/graphics/Bitmap;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;J)Z
+    move-result v0
+    if-eqz v0, :revanced_upload_continue
+    sget-object v0, LX/07Eb;->A00:LX/07Eb;
+    return-object v0
+    :revanced_upload_continue
+    nop
+"""
+
+private val interceptUploadA02 = """
+    move-object/from16 v0, p0
+    move-object/from16 v1, p1
+    move-object/from16 v2, p2
+    move-object/from16 v3, p3
+    move-object/from16 v4, p4
+    move/from16 v5, p6
+    move-wide/from16 v6, p7
+    invoke-static/range { v0 .. v7 }, $EXT->requestPickForUploadA02(Landroid/content/Context;Landroid/graphics/Bitmap;Ljava/lang/Object;Ljava/io/File;Ljava/lang/String;IJ)Z
     move-result v0
     if-eqz v0, :revanced_upload_continue
     sget-object v0, LX/07Eb;->A00:LX/07Eb;
@@ -116,8 +138,8 @@ val instantsGalleryPatch = bytecodePatch(
 
     execute {
         // Upload (suspend) : intercepter les uploads caméra précoces, puis swap.
-        a01Fingerprint.method.addInstructions(0, interceptUpload + swapBitmap)
-        a02Fingerprint.method.addInstructions(0, interceptUpload + swapBitmapAndFile)
+        a01Fingerprint.method.addInstructions(0, interceptUploadA01 + swapBitmap)
+        a02Fingerprint.method.addInstructions(0, interceptUploadA02 + swapBitmapAndFile)
         // Capture : intercepter -> sélecteur, sinon swap.
         a03Fingerprint.method.addInstructions(0, interceptThenSwap)
         // Résultat du sélecteur -> extension.

@@ -15,8 +15,10 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Proxy;
 import java.util.Map;
 
 /**
@@ -43,8 +45,12 @@ public final class InstantsGallery {
     private static volatile boolean allowUpload = false;
     private static volatile Context pendingContext;
     private static volatile Object pendingViewModel;
+    private static volatile UploadRequest pendingUpload;
     private static volatile File selectedFile;
     private static int generation = 0;
+
+    private static final int UPLOAD_A01 = 1;
+    private static final int UPLOAD_A02 = 2;
 
     /** Compat ancien patch. */
     public static boolean shouldIntercept() {
@@ -77,11 +83,48 @@ public final class InstantsGallery {
      * la sélection utilisateur.
      */
     public static boolean requestPickForUpload(Context context, Object viewModel) {
+        return requestPickForUpload(new UploadRequest(0, context, viewModel));
+    }
+
+    public static boolean requestPickForUploadA01(
+            Context context,
+            Bitmap originalBitmap,
+            Object viewModel,
+            Object mediaConfig,
+            String text,
+            String fallbackText,
+            long timestamp) {
+        UploadRequest request = new UploadRequest(UPLOAD_A01, context, viewModel);
+        request.mediaConfig = mediaConfig;
+        request.text = text;
+        request.fallbackText = fallbackText;
+        request.timestamp = timestamp;
+        return requestPickForUpload(request);
+    }
+
+    public static boolean requestPickForUploadA02(
+            Context context,
+            Bitmap originalBitmap,
+            Object viewModel,
+            File originalFile,
+            String text,
+            int uploadMode,
+            long timestamp) {
+        UploadRequest request = new UploadRequest(UPLOAD_A02, context, viewModel);
+        request.originalFile = originalFile;
+        request.text = text;
+        request.uploadMode = uploadMode;
+        request.timestamp = timestamp;
+        return requestPickForUpload(request);
+    }
+
+    private static boolean requestPickForUpload(UploadRequest request) {
         if (injecting || allowUpload) return false;
         synchronized (InstantsGallery.class) {
             if (!picking) return false;
-            if (pendingContext == null) pendingContext = context;
-            if (pendingViewModel == null) pendingViewModel = viewModel;
+            if (pendingContext == null) pendingContext = request.context;
+            if (pendingViewModel == null) pendingViewModel = request.viewModel;
+            if (request.kind != 0) pendingUpload = request;
             return true;
         }
     }
@@ -117,6 +160,7 @@ public final class InstantsGallery {
     private static synchronized void clearSelection() {
         allowUpload = false;
         selectedFile = null;
+        pendingUpload = null;
     }
 
     private static synchronized File nextImageFile() {
@@ -215,7 +259,10 @@ public final class InstantsGallery {
                 Log.w(TAG, "Selected image was copied but could not be decoded");
                 return;
             }
-            new Handler(Looper.getMainLooper()).post(() -> reinjectA03(ctx, vm, bitmap));
+            new Handler(Looper.getMainLooper()).post(() -> {
+                reinjectA03(ctx, vm, bitmap);
+                replayCapturedUpload(ctx, vm, bitmap);
+            });
         }, "instants-copy").start();
     }
 
@@ -281,6 +328,122 @@ public final class InstantsGallery {
         }
     }
 
+    private static void replayCapturedUpload(Context fallbackCtx, Object fallbackVm, Bitmap bitmap) {
+        final UploadRequest request;
+        synchronized (InstantsGallery.class) {
+            request = pendingUpload;
+            pendingUpload = null;
+        }
+        if (request == null || request.kind == 0) {
+            Log.w(TAG, "No captured QuickSnap upload to replay");
+            return;
+        }
+        File file = imageFile();
+        if (file == null || bitmap == null) {
+            clearSelection();
+            Log.w(TAG, "Cannot replay QuickSnap upload without selected image");
+            return;
+        }
+
+        Object vm = request.viewModel != null ? request.viewModel : fallbackVm;
+        Context ctx = request.context != null ? request.context : fallbackCtx;
+        if (vm == null || ctx == null) {
+            clearSelection();
+            Log.w(TAG, "Cannot replay QuickSnap upload without context/viewModel");
+            return;
+        }
+
+        try {
+            Method method = findUploadMethod(vm.getClass(), request.kind);
+            if (method == null) {
+                Log.w(TAG, "QuickSnap upload method was not found on " + vm.getClass().getName());
+                return;
+            }
+            method.setAccessible(true);
+            Class<?>[] parameterTypes = method.getParameterTypes();
+            if (request.kind == UPLOAD_A02) {
+                Object continuation = newContinuation(parameterTypes[5], vm.getClass().getClassLoader());
+                method.invoke(null, ctx, bitmap, vm, file, request.text, continuation,
+                        request.uploadMode, request.timestamp);
+                Log.d(TAG, "Replayed QuickSnap A02 upload with selected gallery image");
+            } else if (request.kind == UPLOAD_A01) {
+                Object continuation = newContinuation(parameterTypes[6], vm.getClass().getClassLoader());
+                method.invoke(null, ctx, bitmap, vm, request.mediaConfig, request.text,
+                        request.fallbackText, continuation, request.timestamp);
+                Log.d(TAG, "Replayed QuickSnap A01 upload with selected gallery image");
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to replay QuickSnap upload", t);
+        } finally {
+            allowUpload = false;
+        }
+    }
+
+    private static Method findUploadMethod(Class<?> vmClass, int kind) {
+        String methodName = kind == UPLOAD_A02 ? "A02" : "A01";
+        Class<?> current = vmClass;
+        while (current != null) {
+            Method[] methods = current.getDeclaredMethods();
+            for (Method method : methods) {
+                if (!methodName.equals(method.getName())) continue;
+                if (!Modifier.isStatic(method.getModifiers())) continue;
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                if (parameterTypes.length != 8) continue;
+                if (!Context.class.isAssignableFrom(parameterTypes[0])) continue;
+                if (parameterTypes[1] != Bitmap.class) continue;
+                if (!parameterTypes[2].isAssignableFrom(vmClass)) continue;
+                if (parameterTypes[parameterTypes.length - 1] != long.class) continue;
+                if (kind == UPLOAD_A02) {
+                    if (parameterTypes[3] != File.class) continue;
+                    if (parameterTypes[4] != String.class) continue;
+                    if (parameterTypes[6] != int.class) continue;
+                } else {
+                    if (parameterTypes[4] != String.class) continue;
+                    if (parameterTypes[5] != String.class) continue;
+                }
+                return method;
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Object newContinuation(Class<?> continuationType, ClassLoader loader) {
+        if (!continuationType.isInterface()) return null;
+        InvocationHandler handler = (proxy, method, args) -> {
+            String name = method.getName();
+            if ("getContext".equals(name)) {
+                return emptyCoroutineContext(loader);
+            }
+            if ("resumeWith".equals(name)) {
+                return null;
+            }
+            if ("toString".equals(name)) {
+                return "RevancedInstantsContinuation";
+            }
+            if ("hashCode".equals(name)) {
+                return System.identityHashCode(proxy);
+            }
+            if ("equals".equals(name)) {
+                return proxy == (args == null ? null : args[0]);
+            }
+            return null;
+        };
+        return Proxy.newProxyInstance(loader, new Class<?>[]{continuationType}, handler);
+    }
+
+    private static Object emptyCoroutineContext(ClassLoader loader) {
+        try {
+            String className = new String(new char[]{'X', '.', '0', '1', 'z', 'g'});
+            Class<?> emptyContext = Class.forName(className, false, loader);
+            Field field = emptyContext.getDeclaredField("A00");
+            field.setAccessible(true);
+            return field.get(null);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private static Method findA03(Class<?> vmClass) {
         Class<?> current = vmClass;
         while (current != null) {
@@ -300,6 +463,24 @@ public final class InstantsGallery {
     }
 
     /** Activité au premier plan via ActivityThread (sans dépendances). */
+    private static final class UploadRequest {
+        final int kind;
+        final Context context;
+        final Object viewModel;
+        Object mediaConfig;
+        File originalFile;
+        String text;
+        String fallbackText;
+        int uploadMode;
+        long timestamp;
+
+        UploadRequest(int kind, Context context, Object viewModel) {
+            this.kind = kind;
+            this.context = context;
+            this.viewModel = viewModel;
+        }
+    }
+
     private static Activity getForegroundActivity() {
         try {
             Class<?> atClass = Class.forName("android.app.ActivityThread");

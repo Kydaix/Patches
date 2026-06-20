@@ -14,7 +14,7 @@ capture camera imposee par l'application.
 
 Fallback si aucune release GitHub n'est encore disponible :
 [`dist/patches-latest.rvp`](dist/patches-latest.rvp) ou
-[`dist/patches-1.0.3.rvp`](dist/patches-1.0.3.rvp).
+[`dist/patches-1.0.4.rvp`](dist/patches-1.0.4.rvp).
 
 ## Compatibilite testee
 
@@ -60,8 +60,8 @@ Instants n'a pas d'import galerie public, mais son pipeline interne accepte un
 
 Le patch intercepte `A03` pour ouvrir le selecteur galerie, copie l'image choisie
 dans le dossier prive d'Instagram sous `revanced_instants/`, puis reinjecte cette
-image dans le pipeline QuickSnap. `A01` et `A02` servent de filet de securite pour
-annuler un upload camera si Instagram tente de publier avant la reinjection.
+image dans le pipeline QuickSnap. `A01` et `A02` capturent l'upload camera annule
+pendant le selecteur, puis le relancent avec la photo choisie.
 
 Sources principales :
 
