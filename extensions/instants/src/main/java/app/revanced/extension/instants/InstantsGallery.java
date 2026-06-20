@@ -9,12 +9,14 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Map;
 
 /**
@@ -31,6 +33,7 @@ import java.util.Map;
  */
 public final class InstantsGallery {
     private static final int REQ = 0x1A57;
+    private static final String TAG = "RevancedInstants";
     private static final String IMAGE_DIR =
             "/sdcard/Android/data/com.instagram.android/files/revanced_instants";
     private static final String IMAGE_PREFIX = "instant_";
@@ -206,7 +209,13 @@ public final class InstantsGallery {
             selectedFile = copied;
             allowUpload = true;
             cleanupOldImages(copied);
-            new Handler(Looper.getMainLooper()).post(() -> reinjectA03(ctx, vm));
+            Bitmap bitmap = imageBitmap();
+            if (bitmap == null) {
+                clearSelection();
+                Log.w(TAG, "Selected image was copied but could not be decoded");
+                return;
+            }
+            new Handler(Looper.getMainLooper()).post(() -> reinjectA03(ctx, vm, bitmap));
         }, "instants-copy").start();
     }
 
@@ -251,17 +260,43 @@ public final class InstantsGallery {
     }
 
     /** Re-déclenche A03 sur le thread principal avec la photo choisie. */
-    private static void reinjectA03(Context ctx, Object vm) {
+    private static void reinjectA03(Context ctx, Object vm, Bitmap bitmap) {
         try {
             injecting = true;
-            Method a03 = vm.getClass().getDeclaredMethod(
-                    "A03", Context.class, Bitmap.class, vm.getClass());
+            Method a03 = findA03(vm.getClass());
+            if (a03 == null) {
+                clearSelection();
+                Log.w(TAG, "QuickSnap A03 method was not found on " + vm.getClass().getName());
+                return;
+            }
             a03.setAccessible(true);
-            a03.invoke(null, ctx, null, vm); // static : receiver null
-        } catch (Throwable ignored) {
+            Object receiver = Modifier.isStatic(a03.getModifiers()) ? null : vm;
+            a03.invoke(receiver, ctx, bitmap, vm);
+            Log.d(TAG, "Reinjected QuickSnap A03 with selected gallery image");
+        } catch (Throwable t) {
+            clearSelection();
+            Log.w(TAG, "Failed to reinject QuickSnap A03", t);
         } finally {
             injecting = false;
         }
+    }
+
+    private static Method findA03(Class<?> vmClass) {
+        Class<?> current = vmClass;
+        while (current != null) {
+            Method[] methods = current.getDeclaredMethods();
+            for (Method method : methods) {
+                if (!"A03".equals(method.getName())) continue;
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                if (parameterTypes.length != 3) continue;
+                if (!Context.class.isAssignableFrom(parameterTypes[0])) continue;
+                if (parameterTypes[1] != Bitmap.class) continue;
+                if (!parameterTypes[2].isAssignableFrom(vmClass)) continue;
+                return method;
+            }
+            current = current.getSuperclass();
+        }
+        return null;
     }
 
     /** Activité au premier plan via ActivityThread (sans dépendances). */

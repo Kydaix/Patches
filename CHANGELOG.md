@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.0.3 - 2026-06-20
+
+- Corrige le cas ou la photo choisie est bien copiee mais ne part pas en upload.
+- Reinjecte `A03` avec le bitmap selectionne au lieu d'un bitmap `null`.
+- Rend la recherche reflective de `A03` plus robuste et logge les echecs sous
+  le tag `RevancedInstants`.
+
 ## 1.0.2 - 2026-06-20
 
 - Corrige un `VerifyError` dans `QuickSnapCameraViewModel.A02` sur Android.
