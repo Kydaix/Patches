@@ -25,35 +25,41 @@ Le token doit avoir le scope `read:packages`.
 Le bundle est genere ici :
 
 ```text
-patches/build/libs/patches-1.0.5.rvp
+patches/build/libs/patches-1.1.0.rvp
 ```
 
 Pour actualiser le bundle distribue dans le repo :
 
 ```powershell
-Copy-Item patches\build\libs\patches-1.0.5.rvp dist\patches-latest.rvp -Force
-Copy-Item patches\build\libs\patches-1.0.5.rvp dist\patches-1.0.5.rvp -Force
+Copy-Item patches\build\libs\patches-1.1.0.rvp dist\patches-latest.rvp -Force
+Copy-Item patches\build\libs\patches-1.1.0.rvp dist\patches-1.1.0.rvp -Force
 ```
 
 ## Checksums
 
 ```powershell
 certutil -hashfile dist\patches-latest.rvp SHA256
-certutil -hashfile dist\patches-1.0.5.rvp SHA256
+certutil -hashfile dist\patches-1.1.0.rvp SHA256
 certutil -hashfile dist\patches.json SHA256
 ```
 
 Les valeurs doivent etre reportees dans `dist/SHA256SUMS.txt`.
 
-## Release GitHub
+## Release GitHub automatique
 
-Le workflow `.github/workflows/release.yml` publie automatiquement les assets quand
-un tag `v*` est pousse :
+Après avoir augmenté `version` dans `gradle.properties`, pousse `main` :
 
 ```powershell
-git tag v1.0.5
-git push origin v1.0.5
+git push origin main
 ```
+
+Le workflow `.github/workflows/release.yml` lit cette version, construit le bundle,
+puis crée automatiquement le tag `v1.1.0` et la release correspondante. Si cette
+release existe déjà, le push est ignoré sans reconstruire les assets.
+
+Le déclenchement historique par push d'un tag `v*` et le lancement manuel depuis
+l'onglet **Actions** restent disponibles pour le dépannage. Un tag manuel doit
+correspondre exactement à la version de `gradle.properties`.
 
 Assets publies :
 

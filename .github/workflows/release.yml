@@ -2,31 +2,80 @@ name: Release patch bundle
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   release:
-    name: Build and publish RVP
+    name: Build, tag and publish RVP
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          project_version="$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*([^[:space:]#]+).*$/\1/p' gradle.properties | head -n 1)"
+          if [[ -z "${project_version}" ]]; then
+            echo "Unable to read version from gradle.properties" >&2
+            exit 1
+          fi
+          if [[ ! "${project_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid project version: ${project_version}" >&2
+            exit 1
+          fi
+
+          tag="v${project_version}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match project version ${tag}" >&2
+            exit 1
+          fi
+
+          should_release=true
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]] &&
+             gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            should_release=false
+            echo "Release ${tag} already exists; nothing to publish."
+          fi
+
+          {
+            echo "version=${project_version}"
+            echo "tag=${tag}"
+            echo "should_release=${should_release}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Set up JDK
+        if: steps.release.outputs.should_release == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Android SDK
+        if: steps.release.outputs.should_release == 'true'
         uses: android-actions/setup-android@v3
 
       - name: Configure GitHub Packages credentials
+        if: steps.release.outputs.should_release == 'true'
         env:
           GH_PACKAGES_USERNAME: ${{ secrets.GH_PACKAGES_USERNAME || github.actor }}
           GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || github.token }}
@@ -40,11 +89,16 @@ jobs:
           } >> ~/.gradle/gradle.properties
 
       - name: Build bundle
+        if: steps.release.outputs.should_release == 'true'
         run: |
           chmod +x ./gradlew
           ./gradlew clean :patches:buildAndroid
 
       - name: Collect release assets
+        if: steps.release.outputs.should_release == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p release
@@ -52,16 +106,15 @@ jobs:
           rvp_file="$(find patches/build/libs -maxdepth 1 -type f -name '*.rvp' ! -name '*-sources.rvp' ! -name '*-javadoc.rvp' | sort | tail -n 1)"
           test -n "${rvp_file}"
 
-          version="${GITHUB_REF_NAME#v}"
           created_at="$(date -u +'%Y-%m-%dT%H:%M:%S')"
           cp "${rvp_file}" release/revanced-instagram-patches.rvp
-          cp "${rvp_file}" "release/revanced-instagram-patches-${version}.rvp"
+          cp "${rvp_file}" "release/revanced-instagram-patches-${RELEASE_VERSION}.rvp"
 
           cat > release/revanced-instagram-patches.json <<EOF
           {
-            "version": "${GITHUB_REF_NAME}",
+            "version": "${RELEASE_TAG}",
             "created_at": "${created_at}",
-            "description": "Instagram ReVanced Patches ${version}",
+            "description": "Instagram ReVanced Patches ${RELEASE_VERSION}",
             "download_url": "https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.rvp"
           }
           EOF
@@ -69,11 +122,17 @@ jobs:
           (cd release && sha256sum *.rvp *.json > SHA256SUMS.txt)
 
       - name: Publish GitHub release
+        if: steps.release.outputs.should_release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" release/* --clobber
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" release/* --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create "${GITHUB_REF_NAME}" release/* --title "${GITHUB_REF_NAME}" --notes-file CHANGELOG.md
+            gh release create "${RELEASE_TAG}" release/* \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${GITHUB_SHA}" \
+              --title "${RELEASE_TAG}" \
+              --notes-file CHANGELOG.md
           fi

@@ -40,6 +40,14 @@ Instants : importer depuis la galerie
 
 Le bundle est prevu pour Manager v2 / Patcher 22.x.
 
+Versions Instagram validées :
+
+- recommandée : `438.0.0.28.88` ;
+- variante testée : `arm64-v8a` / `xxxhdpi` (`versionCode 384409708`) ;
+- compatibilité historique : `434.0.0.44.74` (`versionCode 384009971`).
+
+Manager doit afficher la version comme compatible avant de lancer le patch.
+
 ## 4. Fournir l'APK Instagram
 
 Instagram est distribue en split APK. Si Manager ne recupere pas automatiquement un

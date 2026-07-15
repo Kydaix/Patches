@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-07-15
+
+- Ajoute la compatibilité testée avec Instagram `438.0.0.28.88` (`384409708`).
+- Repère la méthode de capture QuickSnap par sa signature plutôt que par son nom
+  obfusqué (`A03` en 434, `A04` en 438).
+- Déduit dynamiquement le singleton Kotlin `Unit` retourné par `A01/A02` pour ne
+  plus dépendre de sa classe obfusquée (`LX/07Eb;` en 434, `LX/4FC;` en 438).
+- Recherche les méthodes de capture et d'upload par leurs signatures à
+  l'exécution, indépendamment de leurs noms obfusqués.
+- Remplace la classe obfusquée d'`EmptyCoroutineContext` par un proxy de son
+  interface, compatible avec les schémas d'obfuscation 434 et 438.
+- Restreint les métadonnées du patch aux versions réellement validées :
+  `434.0.0.44.74` et `438.0.0.28.88`.
+- Automatise la création du tag et de la release GitHub lors d'un push sur
+  `main`, à partir de la version déclarée dans `gradle.properties`.
+
 ## 1.0.5 - 2026-06-20
 
 - Ajoute une source distante JSON compatible ReVanced Manager v2.

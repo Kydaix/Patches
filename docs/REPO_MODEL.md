@@ -21,9 +21,9 @@ JSON au format `ReVancedAsset` :
 
 ```json
 {
-  "version": "v1.0.5",
-  "created_at": "2026-06-20T00:00:00",
-  "description": "Instagram ReVanced Patches 1.0.5",
+  "version": "v1.1.0",
+  "created_at": "2026-07-15T00:00:00",
+  "description": "Instagram ReVanced Patches 1.1.0",
   "download_url": "https://github.com/Kydaix/Patches/releases/latest/download/revanced-instagram-patches.rvp"
 }
 ```
@@ -38,13 +38,16 @@ Le fichier `.rvp` reste utile pour un import local de secours.
 
 ## Release
 
-Chaque tag `v*` declenche le workflow de release. Il construit le bundle avec
-`:patches:buildAndroid`, puis publie :
+Chaque push sur `main` dont la version de `gradle.properties` n'a pas encore de
+release déclenche le build, crée le tag `v<version>`, puis publie :
 
 - `revanced-instagram-patches.json` : source distante Manager ;
 - `revanced-instagram-patches.rvp` : asset stable pointe par le JSON ;
 - `revanced-instagram-patches-<version>.rvp` : asset versionne ;
 - `SHA256SUMS.txt` : checksums des assets publies.
+
+Un push manuel d'un tag `v*` reste accepté, à condition qu'il corresponde à la
+version déclarée dans `gradle.properties`.
 
 ## Ce qui reste volontairement simple
 

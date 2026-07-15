@@ -26,14 +26,16 @@ Si la source distante ne fonctionne pas, telecharge et importe manuellement ce b
 
 Fallback si aucune release GitHub n'est encore disponible :
 [`dist/patches-latest.rvp`](dist/patches-latest.rvp) ou
-[`dist/patches-1.0.5.rvp`](dist/patches-1.0.5.rvp).
+[`dist/patches-1.1.0.rvp`](dist/patches-1.1.0.rvp).
 
 ## Compatibilite testee
 
 | Element | Version / valeur |
 | --- | --- |
 | Application cible | Instagram `com.instagram.android` |
-| Version Instagram | `434.x` |
+| Version Instagram recommandée | `438.0.0.28.88` |
+| Variante testée | `arm64-v8a` / `xxxhdpi` (`versionCode 384409708`) |
+| Compatibilité conservée | `434.0.0.44.74` (`384009971`) |
 | ReVanced Patcher | `22.0.0` |
 | Plugin Gradle ReVanced | `app.revanced.patches:1.0.0-dev.10` |
 | ReVanced Manager | Manager v2 / patcher 22.x |
@@ -71,12 +73,16 @@ docs/                                              installation, build, depannag
 ## Fonctionnement technique
 
 Instants n'a pas d'import galerie public, mais son pipeline interne accepte un
-`Bitmap` via `QuickSnapCameraViewModel.A01/A02/A03`.
+`Bitmap` via les méthodes d'upload `A01/A02` et la méthode de capture de
+`QuickSnapCameraViewModel`.
 
-Le patch intercepte `A03` pour ouvrir le selecteur galerie, copie l'image choisie
-dans le dossier prive d'Instagram sous `revanced_instants/`, puis reinjecte cette
-image dans le pipeline QuickSnap. `A01` et `A02` capturent l'upload camera annule
-pendant le selecteur, puis le relancent avec la photo choisie.
+Le patch repère la méthode de capture par sa signature (`A03` en Instagram 434,
+`A04` en 438) pour ouvrir le selecteur galerie, copie l'image choisie dans le
+dossier prive d'Instagram sous `revanced_instants/`, puis reinjecte cette image
+dans le pipeline QuickSnap. `A01` et `A02` capturent l'upload camera annule pendant
+le selecteur, puis le relancent avec la photo choisie. Les classes Kotlin obfusquées
+utilisées pour `Unit` et le contexte de coroutine sont également découvertes ou
+émulées dynamiquement.
 
 Sources principales :
 

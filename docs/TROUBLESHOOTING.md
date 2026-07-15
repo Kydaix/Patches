@@ -8,6 +8,13 @@
 - Pour un import local, utilise `revanced-instagram-patches.rvp`.
 - Reessaie avec les assets de la derniere release GitHub.
 
+## Manager indique que la version Instagram est incompatible
+
+Le bundle `1.1.0` valide explicitement Instagram `438.0.0.28.88` et conserve
+`434.0.0.44.74`. Utilise de préférence `438.0.0.28.88` : une version plus récente
+peut déplacer à nouveau les méthodes QuickSnap obfusquées et doit être auditée
+avant d'être déclarée compatible.
+
 ## Instagram plante au lancement
 
 Cause la plus probable : l'APK Instagram a ete reconstruit sans les bons splits

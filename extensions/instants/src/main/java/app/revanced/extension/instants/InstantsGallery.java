@@ -25,13 +25,15 @@ import java.util.Map;
  * Sélecteur de galerie pour les "Instants" (QuickSnap).
  *
  * Flux :
- *  - A03 (capture) appelle requestPickForCapture(); si true -> le sélecteur
- *    photo système est lancé et la capture caméra est annulée.
+ *  - La méthode de capture QuickSnap (A03 en 434, A04 en 438) appelle
+ *    requestPickForCapture(); si true -> le sélecteur photo système est lancé
+ *    et la capture caméra est annulée.
  *  - A01/A02 appellent requestPickForUpload() comme filet de sécurité si un
- *    upload caméra démarre pendant qu'un sélecteur ouvert par A03 est actif.
+ *    upload caméra démarre pendant qu'un sélecteur ouvert par la capture est actif.
  *  - ModalActivity.onActivityResult() transmet le résultat ici : on copie
- *    l'image choisie vers un fichier privé unique puis on RE-déclenche A03
- *    (injecting=true), ce qui fait repartir le pipeline avec la photo choisie.
+ *    l'image choisie vers un fichier privé unique puis on RE-déclenche la
+ *    méthode de capture (injecting=true), ce qui fait repartir le pipeline avec
+ *    la photo choisie.
  */
 public final class InstantsGallery {
     private static final int REQ = 0x1A57;
@@ -62,7 +64,7 @@ public final class InstantsGallery {
         requestPickForCapture(context, viewModel);
     }
 
-    /** Appelé au début de A03. true => le picker est lancé et la capture est annulée. */
+    /** Appelé au début de la capture. true => le picker est lancé et la capture est annulée. */
     public static boolean requestPickForCapture(Context context, Bitmap originalBitmap, Object viewModel) {
         if (injecting) return false;
         if (originalBitmap == null) return false;
@@ -260,7 +262,7 @@ public final class InstantsGallery {
                 return;
             }
             new Handler(Looper.getMainLooper()).post(() -> {
-                reinjectA03(ctx, vm, bitmap);
+                reinjectCapture(ctx, vm, bitmap);
                 replayCapturedUpload(ctx, vm, bitmap);
             });
         }, "instants-copy").start();
@@ -306,23 +308,22 @@ public final class InstantsGallery {
         }
     }
 
-    /** Re-déclenche A03 sur le thread principal avec la photo choisie. */
-    private static void reinjectA03(Context ctx, Object vm, Bitmap bitmap) {
+    /** Re-déclenche la méthode de capture sur le thread principal avec la photo choisie. */
+    private static void reinjectCapture(Context ctx, Object vm, Bitmap bitmap) {
         try {
             injecting = true;
-            Method a03 = findA03(vm.getClass());
-            if (a03 == null) {
+            Method captureMethod = findCaptureMethod(vm.getClass());
+            if (captureMethod == null) {
                 clearSelection();
-                Log.w(TAG, "QuickSnap A03 method was not found on " + vm.getClass().getName());
+                Log.w(TAG, "QuickSnap capture method was not found on " + vm.getClass().getName());
                 return;
             }
-            a03.setAccessible(true);
-            Object receiver = Modifier.isStatic(a03.getModifiers()) ? null : vm;
-            a03.invoke(receiver, ctx, bitmap, vm);
-            Log.d(TAG, "Reinjected QuickSnap A03 with selected gallery image");
+            captureMethod.setAccessible(true);
+            captureMethod.invoke(null, ctx, bitmap, vm);
+            Log.d(TAG, "Reinjected QuickSnap capture with selected gallery image");
         } catch (Throwable t) {
             clearSelection();
-            Log.w(TAG, "Failed to reinject QuickSnap A03", t);
+            Log.w(TAG, "Failed to reinject QuickSnap capture", t);
         } finally {
             injecting = false;
         }
@@ -380,13 +381,12 @@ public final class InstantsGallery {
     }
 
     private static Method findUploadMethod(Class<?> vmClass, int kind) {
-        String methodName = kind == UPLOAD_A02 ? "A02" : "A01";
         Class<?> current = vmClass;
         while (current != null) {
             Method[] methods = current.getDeclaredMethods();
             for (Method method : methods) {
-                if (!methodName.equals(method.getName())) continue;
                 if (!Modifier.isStatic(method.getModifiers())) continue;
+                if (method.getReturnType() != Object.class) continue;
                 Class<?>[] parameterTypes = method.getParameterTypes();
                 if (parameterTypes.length != 8) continue;
                 if (!Context.class.isAssignableFrom(parameterTypes[0])) continue;
@@ -413,7 +413,7 @@ public final class InstantsGallery {
         InvocationHandler handler = (proxy, method, args) -> {
             String name = method.getName();
             if ("getContext".equals(name)) {
-                return emptyCoroutineContext(loader);
+                return emptyCoroutineContext(method.getReturnType(), loader);
             }
             if ("resumeWith".equals(name)) {
                 return null;
@@ -432,24 +432,48 @@ public final class InstantsGallery {
         return Proxy.newProxyInstance(loader, new Class<?>[]{continuationType}, handler);
     }
 
-    private static Object emptyCoroutineContext(ClassLoader loader) {
-        try {
-            String className = new String(new char[]{'X', '.', '0', '1', 'z', 'g'});
-            Class<?> emptyContext = Class.forName(className, false, loader);
-            Field field = emptyContext.getDeclaredField("A00");
-            field.setAccessible(true);
-            return field.get(null);
-        } catch (Throwable ignored) {
+    /**
+     * Implémentation réfléchie d'EmptyCoroutineContext.
+     *
+     * Le nom de la classe concrète est obfusqué et n'est pas stable
+     * (`X.01zg` en 434, autre classe en 438). Un proxy de l'interface retournée
+     * par Continuation.getContext() reproduit les quatre opérations du contexte
+     * vide sans dépendre d'un nom d'obfuscation.
+     */
+    private static Object emptyCoroutineContext(Class<?> contextType, ClassLoader loader) {
+        if (!contextType.isInterface()) return null;
+        InvocationHandler handler = (proxy, method, args) -> {
+            String name = method.getName();
+            if ("toString".equals(name)) return "RevancedInstantsEmptyCoroutineContext";
+            if ("hashCode".equals(name)) return 0;
+            if ("equals".equals(name)) return proxy == (args == null ? null : args[0]);
+
+            int parameterCount = method.getParameterTypes().length;
+            if (parameterCount == 2) {
+                // CoroutineContext.fold(initial, operation) sur un contexte vide.
+                return args == null ? null : args[0];
+            }
+            if (parameterCount == 1 && method.getReturnType() == contextType) {
+                if (method.getParameterTypes()[0] == contextType) {
+                    // EmptyCoroutineContext.plus(context) == context.
+                    return args == null ? null : args[0];
+                }
+                // EmptyCoroutineContext.minusKey(key) == this.
+                return proxy;
+            }
+            // EmptyCoroutineContext.get(key) == null.
             return null;
-        }
+        };
+        return Proxy.newProxyInstance(loader, new Class<?>[]{contextType}, handler);
     }
 
-    private static Method findA03(Class<?> vmClass) {
+    private static Method findCaptureMethod(Class<?> vmClass) {
         Class<?> current = vmClass;
         while (current != null) {
             Method[] methods = current.getDeclaredMethods();
             for (Method method : methods) {
-                if (!"A03".equals(method.getName())) continue;
+                if (!Modifier.isStatic(method.getModifiers())) continue;
+                if (method.getReturnType() != void.class) continue;
                 Class<?>[] parameterTypes = method.getParameterTypes();
                 if (parameterTypes.length != 3) continue;
                 if (!Context.class.isAssignableFrom(parameterTypes[0])) continue;
