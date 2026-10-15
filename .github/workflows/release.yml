@@ -73,6 +73,8 @@ jobs:
       - name: Set up Android SDK
         if: steps.release.outputs.should_release == 'true'
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Configure GitHub Packages credentials
         if: steps.release.outputs.should_release == 'true'
