@@ -1,8 +1,11 @@
-# Instagram ReVanced - Instants depuis la galerie
+# Kydaix ReVanced Patches
 
-Patch [ReVanced](https://revanced.app) pour **Instagram** (`com.instagram.android`) qui
-permet d'envoyer une photo de la galerie dans **Instants** au lieu d'utiliser la
-capture camera imposee par l'application.
+Patches [ReVanced](https://revanced.app) personnels :
+
+| Application | Patch | Rôle |
+| --- | --- | --- |
+| Instagram (`com.instagram.android`) | **Instants : importer depuis la galerie** | Envoie une photo de la galerie dans **Instants** au lieu de la capture caméra imposée. |
+| ChatGPT (`com.openai.chatgpt`) | **Localisation : États-Unis** | Fait croire à l'app que l'appareil est aux États-Unis, sans VPN. Toutes versions. Voir [docs/CHATGPT_REGION.md](docs/CHATGPT_REGION.md). |
 
 ## Installation rapide avec mises a jour
 
@@ -16,7 +19,7 @@ Garde **Auto update** active. Manager telecharge ensuite automatiquement le dern
 bundle `.rvp` reference par cette source.
 
 Ensuite, selectionne Instagram, active **Instants : importer depuis la galerie**, puis
-patche l'APK.
+patche l'APK. Pour ChatGPT, selectionne ChatGPT et active **Localisation : États-Unis**.
 
 ## Import local de secours
 
@@ -28,7 +31,19 @@ Fallback si aucune release GitHub n'est encore disponible :
 [`dist/patches-latest.rvp`](dist/patches-latest.rvp) ou
 [`dist/patches-1.1.0.rvp`](dist/patches-1.1.0.rvp).
 
-## Compatibilite testee
+## ChatGPT : localisation aux États-Unis
+
+Le patch remplace, dans tout le bytecode de ChatGPT, les appels aux API système qui
+révèlent le pays (locale, pays de la SIM et du réseau, opérateur, fuseau horaire en
+option) par des valeurs américaines. La langue de l'interface est conservée
+(`fr-FR` devient `fr-US`). Comme il ne vise que des API publiques Android/Java, il ne
+dépend d'aucune classe obfusquée et reste compatible avec toutes les versions.
+
+Limite : l'adresse IP ne change pas. Une fonctionnalité que les serveurs d'OpenAI
+réservent selon l'IP ou le pays du compte restera bloquée. Détails et options :
+[docs/CHATGPT_REGION.md](docs/CHATGPT_REGION.md).
+
+## Compatibilite testee (Instagram)
 
 | Element | Version / valeur |
 | --- | --- |
@@ -42,7 +57,7 @@ Fallback si aucune release GitHub n'est encore disponible :
 | Bundle local | `dist/patches-latest.rvp` |
 | Source distante | `dist/patches.json` |
 
-## Utilisation
+## Utilisation (Instagram)
 
 Apres installation, ouvre **Instants**, ecris une legende si besoin, puis appuie sur
 le bouton de capture habituel. Le selecteur de galerie systeme s'ouvre. Choisis une
@@ -57,20 +72,24 @@ galerie, ce qui evite de modifier l'UI Compose interne d'Instagram.
 - [Construire le bundle localement](docs/BUILD.md)
 - [Organisation du repo](docs/REPO_MODEL.md)
 - [Depannage](docs/TROUBLESHOOTING.md)
+- [ChatGPT : localisation aux États-Unis](docs/CHATGPT_REGION.md)
 - [Historique des changements](CHANGELOG.md)
 
 ## Organisation du repo
 
 ```text
-patches/src/.../instants/InstantsGalleryPatch.kt   patch ReVanced
-extensions/instants/                               extension Android injectee
+patches/src/.../instants/InstantsGalleryPatch.kt   patch ReVanced Instagram
+patches/src/.../chatgpt/region/SpoofRegionPatch.kt patch ReVanced ChatGPT
+extensions/instants/                               extension Android Instagram
+extensions/chatgpt/                                extension Android ChatGPT
 dist/patches.json                                  source distante Manager
 dist/patches-latest.rvp                            bundle local importable
 docs/                                              installation, build, depannage
 .github/workflows/release.yml                      publication des assets GitHub Release
+.github/workflows/build.yml                        build de test des branches (artefact .rvp)
 ```
 
-## Fonctionnement technique
+## Fonctionnement technique (Instagram)
 
 Instants n'a pas d'import galerie public, mais son pipeline interne accepte un
 `Bitmap` via les méthodes d'upload `A01/A02` et la méthode de capture de

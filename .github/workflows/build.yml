@@ -1,0 +1,65 @@
+name: Build patch bundle
+
+# Build de test : construit le bundle sur les branches autres que main et le publie
+# comme artefact du workflow, sans créer de tag ni de release.
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build RVP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Configure GitHub Packages credentials
+        env:
+          GH_PACKAGES_USERNAME: ${{ secrets.GH_PACKAGES_USERNAME || github.actor }}
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || github.token }}
+        run: |
+          mkdir -p ~/.gradle
+          {
+            echo "githubPackagesUsername=${GH_PACKAGES_USERNAME}"
+            echo "githubPackagesPassword=${GH_PACKAGES_TOKEN}"
+            echo "gpr.user=${GH_PACKAGES_USERNAME}"
+            echo "gpr.key=${GH_PACKAGES_TOKEN}"
+          } >> ~/.gradle/gradle.properties
+
+      - name: Build bundle
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean :patches:buildAndroid
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: revanced-patches-${{ github.sha }}
+          path: |
+            patches/build/libs/*.rvp
+            !patches/build/libs/*-sources.rvp
+            !patches/build/libs/*-javadoc.rvp
+          if-no-files-found: error
