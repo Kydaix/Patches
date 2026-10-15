@@ -8,6 +8,9 @@
   `TelephonyManager` sont redirigés vers l'extension `RegionSpoof`.
 - Options : pays (US par défaut), conservation de la langue, fuseau horaire facultatif
   (`TimeZone.getDefault` / `ZoneId.systemDefault`).
+- Ajoute `scripts/mount-patched-apk.sh` pour monter un APK patché (root) par-dessus
+  une app installée en bundle depuis le Play Store, sans la réinstallation que
+  ReVanced Manager impose en mode « Monter ».
 - Ajoute le workflow `build.yml` qui construit le bundle sur les branches autres que
   `main` et le publie comme artefact de test, sans créer de release.
 

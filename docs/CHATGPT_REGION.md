@@ -73,3 +73,34 @@ seulement les signaux de localisation que le téléphone envoie à ChatGPT.
 Le journal de patch (ReVanced Manager ou CLI) contient une ligne comme
 `N appels système redirigés vers RegionSpoof (US)`. Si `N` vaut 0, ChatGPT ne lit
 aucune de ces API et le patch n'aura aucun effet sur cette version.
+
+## Installation avec root (montage)
+
+ChatGPT est distribué en bundle (APK splittés). Deux contraintes de ReVanced Manager
+empêchent son mode **Monter** de fonctionner tel quel :
+
+- Manager refuse l'app installée depuis le Play Store comme source, car c'est un
+  bundle : il faut lui donner un APK fusionné (AntiSplit M, APKEditor) ;
+- en mode **Monter**, Manager réinstalle toujours cet APK source avant de monter.
+  L'APK fusionné étant re-signé, Android refuse de l'installer par-dessus la version
+  du Play Store : `INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match`.
+
+Le script [`scripts/mount-patched-apk.sh`](../scripts/mount-patched-apk.sh) fait le
+montage sans cette réinstallation, en gardant l'app du Play Store et sa signature
+d'origine (la connexion Google continue de fonctionner) :
+
+1. Installe ChatGPT depuis le Play Store, dans la version de l'APK fusionné.
+2. Patche l'APK fusionné dans Manager, puis enregistre l'APK patché au lieu de
+   l'installer (bouton d'export), par exemple dans `/sdcard/Download/chatgpt-revanced.apk`.
+3. Lance, par exemple depuis Termux :
+
+   ```sh
+   su -c "sh /sdcard/Download/mount-patched-apk.sh /sdcard/Download/chatgpt-revanced.apk"
+   ```
+
+4. Désactive la mise à jour automatique de ChatGPT dans le Play Store.
+
+Le script crée le même module (`/data/adb/modules/com.openai.chatgpt-revanced`) que
+Manager : le montage est refait à chaque démarrage, sauf si la version installée a
+changé. Pour une nouvelle version de ChatGPT, mets l'app à jour, repatche l'APK
+correspondant et relance le script.
