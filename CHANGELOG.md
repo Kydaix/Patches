@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Ajoute le patch **Localisation : États-Unis** pour ChatGPT (`com.openai.chatgpt`),
+  compatible avec toutes les versions : les appels à `Locale.getDefault`,
+  `LocaleList.getDefault/getAdjustedDefault` et aux méthodes pays/opérateur de
+  `TelephonyManager` sont redirigés vers l'extension `RegionSpoof`.
+- Options : pays (US par défaut), conservation de la langue, fuseau horaire facultatif
+  (`TimeZone.getDefault` / `ZoneId.systemDefault`).
+- Ajoute le workflow `build.yml` qui construit le bundle sur les branches autres que
+  `main` et le publie comme artefact de test, sans créer de release.
+
 ## 1.1.0 - 2026-07-15
 
 - Ajoute la compatibilité testée avec Instagram `438.0.0.28.88` (`384409708`).

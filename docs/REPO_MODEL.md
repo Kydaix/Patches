@@ -10,7 +10,7 @@ patches/                 code Kotlin des patches ReVanced
 extensions/              code Android injecte dans l'application cible
 dist/patches.json        source distante compatible ReVanced Manager v2
 dist/*.rvp               bundles locaux de secours
-.github/workflows/       build et publication des assets de release
+.github/workflows/       build de test (branches) et publication des assets de release
 docs/                    installation, build, depannage
 ```
 

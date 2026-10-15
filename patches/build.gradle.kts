@@ -3,7 +3,7 @@ group = "app.instagram.revanced"
 patches {
     about {
         name = "Instagram ReVanced Patches"
-        description = "Patches personnels pour Instagram (Instants : envoyer depuis la galerie)"
+        description = "Patches personnels : Instagram (Instants depuis la galerie) et ChatGPT (localisation aux États-Unis)"
         source = "https://github.com/Kydaix/Patches"
         author = "Kydaix"
         contact = "gueguenhugo@proton.me"
